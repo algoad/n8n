@@ -104,3 +104,74 @@ export function determineTestModeWithCredentials(
 
 	return false;
 }
+
+import { OrderExecutionContext } from './order-node-types';
+
+/**
+ * Determine the execution context for ORDER metadata nodes
+ * @param context - The IExecuteFunctions context from node execution
+ * @returns The execution context type
+ */
+export function getOrderExecutionContext(context: IExecuteFunctions): OrderExecutionContext {
+	const workflow = context.getWorkflow();
+	const node = context.getNode();
+
+	// Access runExecutionData - it's a readonly property on NodeExecutionContext
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const contextAny = context as any;
+	const runExecutionData = contextAny.runExecutionData as
+		| {
+				startData?: { destinationNode?: string };
+		  }
+		| null
+		| undefined;
+
+	const destinationNode = runExecutionData?.startData?.destinationNode;
+	const mode = contextAny.mode ?? context.getMode();
+	const isManual = mode === 'manual';
+	const isWorkflowActive = workflow.active;
+
+	// For execute-step detection: check if destinationNode matches current node
+	const isExecuteStep = destinationNode === node.name;
+
+	// Debug logging (can be enabled with N8N_DEBUG_ORDER_CONTEXT=true)
+	// Also log in development mode for easier debugging
+	const shouldDebug =
+		process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development';
+	if (shouldDebug) {
+		console.log('[ORDER Context Debug]', {
+			nodeName: node.name,
+			destinationNode,
+			isExecuteStep,
+			mode,
+			isManual,
+			isWorkflowActive,
+			hasRunExecutionData: !!runExecutionData,
+			runExecutionDataKeys: runExecutionData ? Object.keys(runExecutionData) : [],
+			startData: runExecutionData?.startData,
+			workflowId: workflow.id,
+		});
+	}
+
+	// 1. Execute step: destinationNode matches current node and mode is manual
+	// This is the most reliable indicator of single-node execution
+	// Note: We check isExecuteStep first as it's the most reliable indicator
+	if (isExecuteStep && isManual) {
+		// Even if workflow is active, if destinationNode matches, it's execute-step
+		return OrderExecutionContext.ExecuteStep;
+	}
+
+	// 2. Manual inactive: manual mode and workflow is inactive
+	// This covers full workflow execution when inactive
+	if (isManual && !isWorkflowActive) {
+		return OrderExecutionContext.ManualInactive;
+	}
+
+	// 3. Active: workflow is active (regardless of mode)
+	if (isWorkflowActive) {
+		return OrderExecutionContext.Active;
+	}
+
+	// Default to manual-inactive for safety (prevents accidental live trades)
+	return OrderExecutionContext.ManualInactive;
+}

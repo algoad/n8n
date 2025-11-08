@@ -94,7 +94,7 @@ const selectRefs = ref<Array<InstanceType<typeof N8nSelect>>>([]);
 const node = computed(() => props.node);
 
 const nodeType = computed(() =>
-	nodeTypesStore.getNodeType(props.node.type, props.node.typeVersion),
+	props.node ? nodeTypesStore.getNodeType(props.node.type, props.node.typeVersion) : null,
 );
 
 const {
@@ -121,14 +121,15 @@ const credentialTypeNames = computed(() => {
 });
 
 const selected = computed<Record<string, INodeCredentialsDetails>>(
-	() => props.node.credentials ?? {},
+	() => props.node?.credentials ?? {},
 );
 
 watch(
-	() => props.node.parameters,
+	() => props.node?.parameters,
 	(newValue, oldValue) => {
 		// When active node parameters change, check if authentication type has been changed
 		// and set `subscribedToCredentialType` to corresponding credential type
+		if (!props.node) return;
 		const isActive = props.node.name === ndvStore.activeNode?.name;
 		// Only do this for active node and if it's listening for auth change
 		if (isActive && nodeType.value && listeningForAuthChange.value) {

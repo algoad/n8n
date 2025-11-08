@@ -8,10 +8,13 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
+import { mockAlpacaPlaceOrderResponse } from '../../utils/mock-trade-response';
+import { OrderNodeExecutor } from '../../utils/order-node-executor';
+import { TradingEnvironment, OrderExecutionContext } from '../../utils/order-node-types';
 import { trackOrder } from '../../utils/trading-node-helper';
 
 export class AlpacaMarkets implements INodeType {
-	description: INodeTypeDescription = {
+	description: INodeTypeDescription & { metadata?: { tags: string[] } } = {
 		displayName: 'Alpaca Markets',
 		name: 'alpacaMarkets',
 		icon: 'file:alpaca.svg',
@@ -44,11 +47,21 @@ export class AlpacaMarkets implements INodeType {
 				],
 			},
 		},
+		// Custom metadata tag for behind-the-scenes classification
+		// This identifies nodes that execute trades
+		// Accessible at runtime via:
+		// - this.nodeType.description.metadata (during node execution)
+		// - workflow.nodeTypes.getByNameAndVersion('alpacaMarkets', 1).description.metadata
+		// - nodeType.description.metadata (when you have the node type instance)
+		metadata: {
+			tags: ['ORDER'],
+		},
 		properties: [
 			{
 				displayName: 'Operation',
 				name: 'operation',
 				type: 'options',
+				default: 'placeOrder',
 				noDataExpression: true,
 				options: [
 					{
@@ -76,7 +89,6 @@ export class AlpacaMarkets implements INodeType {
 						action: 'Cancel an order',
 					},
 				],
-				default: 'placeOrder',
 			},
 
 			// Place Order Fields
@@ -334,10 +346,59 @@ export class AlpacaMarkets implements INodeType {
 				};
 
 				const operation = getParameter<string>('operation', 'placeOrder');
-				const credentials = await this.getCredentials('alpacaMarketsApi', i);
 
+				// Get node type to check for ORDER metadata
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const nodeType = (this as any).nodeType as INodeType | undefined;
+				const hasOrderMetadata = OrderNodeExecutor.hasOrderMetadata(
+					nodeType as { description?: { metadata?: { tags?: string[] } } } | null | undefined,
+				);
+				const isTradeOperation = OrderNodeExecutor.isTradeOperation(operation);
+
+				// Determine execution behavior using ORDER node utilities
+				const config = {
+					hasOrderMetadata,
+					executionContext: null as OrderExecutionContext | null,
+					operation,
+					isTradeOperation,
+				};
+
+				// Get execution context if this is an ORDER node
+				if (hasOrderMetadata) {
+					try {
+						const { getOrderExecutionContext } = await import('../../utils/execution-context');
+						config.executionContext = getOrderExecutionContext(this);
+					} catch (error) {
+						// Default to execute-step for safety if detection fails
+						config.executionContext = OrderExecutionContext.ExecuteStep;
+					}
+				}
+
+				const executionResult = OrderNodeExecutor.determineExecutionBehavior(this, config);
+
+				// Log execution context for debugging
+				if (hasOrderMetadata) {
+					this.logger?.warn(
+						`[ORDER Node] Context: ${executionResult.context}, Mock: ${executionResult.shouldMock}, Force Paper: ${executionResult.forcePaperTrading}, Operation: ${operation}`,
+					);
+				}
+
+				// Get credentials
+				let credentials = await this.getCredentials('alpacaMarketsApi', i);
+
+				// Force paper trading if needed
+				if (executionResult.forcePaperTrading && !OrderNodeExecutor.isPaperTrading(credentials)) {
+					credentials = OrderNodeExecutor.forcePaperTradingCredentials(credentials);
+					this.logger?.info(
+						`ORDER node: Forcing paper trading credentials (context: ${executionResult.context})`,
+					);
+				}
+
+				// Determine base URL based on environment
+				const environment =
+					(credentials.environment as TradingEnvironment) || TradingEnvironment.Paper;
 				const baseUrl =
-					credentials.environment === 'paper'
+					environment === TradingEnvironment.Paper
 						? 'https://paper-api.alpaca.markets'
 						: 'https://api.alpaca.markets';
 
@@ -383,22 +444,38 @@ export class AlpacaMarkets implements INodeType {
 					// Merge: node additionalOptions first, then input data overrides
 					Object.assign(body, additionalOptions, inputAdditionalOptions);
 
-					const options: IHttpRequestOptions = {
-						method: 'POST',
-						url: `${baseUrl}/v2/orders`,
-						headers: {
-							// eslint-disable-next-line @typescript-eslint/naming-convention
-							'Content-Type': 'application/json',
-						},
-						body,
-						json: true,
-					};
+					// Check if we should mock the response
+					if (executionResult.shouldMock && isTradeOperation) {
+						// Mock the response instead of making a real API call
+						this.logger?.warn(
+							'ORDER node: Mocking trade execution response. NO REAL TRADE WILL BE EXECUTED.',
+						);
+						responseData = mockAlpacaPlaceOrderResponse(body);
+					} else if (executionResult.executeRealTrade) {
+						// Execute real trade
+						const options: IHttpRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/v2/orders`,
+							headers: {
+								// eslint-disable-next-line @typescript-eslint/naming-convention
+								'Content-Type': 'application/json',
+							},
+							body,
+							json: true,
+						};
 
-					responseData = (await this.helpers.httpRequestWithAuthentication.call(
-						this,
-						'alpacaMarketsApi',
-						options,
-					)) as IDataObject;
+						responseData = (await this.helpers.httpRequestWithAuthentication.call(
+							this,
+							'alpacaMarketsApi',
+							options,
+						)) as IDataObject;
+					} else {
+						// Should not happen, but safety check
+						this.logger?.warn(
+							'ORDER node: Neither mocking nor executing trade. Using mock as fallback.',
+						);
+						responseData = mockAlpacaPlaceOrderResponse(body);
+					}
 
 					// Track the order in our database
 					try {

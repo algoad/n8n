@@ -100,6 +100,31 @@ const nodeType = computed((): INodeTypeDescription | null => {
 	return node.value ? nodeTypesStore.getNodeType(node.value.type, node.value.typeVersion) : null;
 });
 
+// Check if node has ORDER metadata tag (for trading nodes)
+// Uses a hardcoded list of known ORDER nodes to ensure reliability
+// and prevent accidental matches with other nodes.
+// Nodes with ORDER metadata will show the "Paper Trade" badge
+const hasOrderMetadata = computed(() => {
+	if (!nodeType.value) return false;
+
+	const nodeTypeName = node.value?.type ?? nodeType.value.name;
+
+	// Hardcoded list of known ORDER nodes
+	// This list should match nodes that have ORDER metadata in their definition
+	// and implement the ORDER execution logic (see ORDER_METADATA_EXECUTION_LOGIC.md)
+	// TODO(adam): ensure this cannot be modified at runtime or that user cannot create custom nodes with ORDER metadata or called alpacaMarkets
+	const knownOrderNodes = [
+		'n8n-nodes-base.alpacaMarkets',
+		// Add other ORDER nodes here as they are created:
+		// 'n8n-nodes-base.coinbase',
+		// 'n8n-nodes-base.kalshi',
+	];
+
+	const isOrderNode = knownOrderNodes.includes(nodeTypeName);
+
+	return isOrderNode;
+});
+
 const isNodeRunning = computed(() => {
 	if (!workflowsStore.isWorkflowRunning || codeGenerationInProgress.value) return false;
 	const triggeredNode = workflowsStore.executedNode;
@@ -406,21 +431,42 @@ async function onClick() {
 				{{ tooltipText }}
 			</slot>
 		</template>
-		<N8nButton
-			v-bind="$attrs"
-			:loading="isLoading && showLoadingSpinner"
-			:disabled="disabled || !!disabledHint || (isLoading && !showLoadingSpinner)"
-			:label="buttonLabel"
-			:type="type"
-			:size="size"
-			:icon="buttonIcon"
-			:square="square"
-			:transparent-background="transparent"
-			:title="
-				!isTriggerNode && !tooltipText ? i18n.baseText('ndv.execute.testNode.description') : ''
-			"
-			@mouseover="onMouseOver"
-			@click="onClick"
-		/>
+		<div
+			class="execute-button-container"
+			style="display: flex; flex-direction: column; align-items: right; gap: 4px"
+		>
+			<N8nButton
+				v-bind="$attrs"
+				:loading="isLoading && showLoadingSpinner"
+				:disabled="disabled || !!disabledHint || (isLoading && !showLoadingSpinner)"
+				:label="buttonLabel"
+				:type="type"
+				:size="size"
+				:icon="buttonIcon"
+				:square="square"
+				:transparent-background="transparent"
+				:title="
+					!isTriggerNode && !tooltipText ? i18n.baseText('ndv.execute.testNode.description') : ''
+				"
+				@mouseover="onMouseOver"
+				@click="onClick"
+			/>
+			<span
+				v-if="hasOrderMetadata"
+				class="paper-trade-badge"
+				style="
+					font-size: 11px;
+					color: #ff9800;
+					font-weight: 500;
+					white-space: nowrap;
+					padding: 2px 6px;
+					background-color: rgba(255, 152, 0, 0.1);
+					border-radius: 4px;
+					border: 1px solid rgba(255, 152, 0, 0.3);
+				"
+			>
+				Paper Trade
+			</span>
+		</div>
 	</N8nTooltip>
 </template>
