@@ -2727,6 +2727,7 @@ export interface IWorkflowSettings {
 	executionOrder?: 'v0' | 'v1';
 	timeSavedPerExecution?: number;
 	availableInMCP?: boolean;
+	tradingMode?: 'mock' | 'paper';
 }
 
 export interface WorkflowFEMeta {

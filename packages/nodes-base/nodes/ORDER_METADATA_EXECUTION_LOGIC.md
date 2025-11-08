@@ -2,7 +2,31 @@
 
 ## Overview
 
-Nodes with the `ORDER` metadata tag (e.g., Alpaca Markets, Coinbase, Kalshi trading nodes) implement special execution logic based on three different execution contexts. This ensures safe trading practices and prevents accidental live trades during development and testing.
+Nodes with the `ORDER` metadata tag (e.g., Alpaca Markets, Coinbase, Kalshi trading nodes) implement special execution logic based on execution contexts and workflow-level trading mode settings. This ensures safe trading practices and prevents accidental live trades during development and testing.
+
+## Workflow-Level Trading Mode
+
+Each workflow has a **Trading Mode** toggle that controls how ORDER nodes behave when the workflow is executed:
+
+### Mock Mode (Default)
+
+- **Behavior:** All ORDER nodes in the workflow will return mocked responses
+- **Trade Execution:** **NO real trades are executed** (neither paper nor live)
+- **Purpose:** Safe testing and development without any API calls or financial risk
+- **When to use:** During workflow development, testing, or when you want to preview behavior without executing trades
+
+### Paper Mode
+
+- **Behavior:** ORDER nodes will execute real trades on paper trading accounts
+- **Trade Execution:** **Real trades ARE executed** on paper trading accounts only
+- **Purpose:** Test workflows with real API calls but safely on paper accounts
+- **When to use:** When you want to test the full workflow with real API integration but without financial risk
+
+**Note:** The trading mode toggle only appears in workflows that contain at least one ORDER node (trading node).
+
+## Node-Level Execution (Execute Step)
+
+**Important:** When executing a single node using "Execute step" in the workflow editor, the node will **ALWAYS** return mocked data, regardless of the workflow-level trading mode setting. This ensures that individual node testing is always safe and never executes real trades.
 
 ## Execution Contexts
 
@@ -30,8 +54,9 @@ n8n provides three distinct execution contexts where a node can be executed:
 
 **Behavior:**
 
-- **Credentials:** Always forced to use paper trading credentials, regardless of what the user has selected
-- **Trade Execution:** **Real trades ARE executed**, but only on the paper trading account
+- **Workflow Trading Mode = Mock:** Returns mocked responses (no real trades)
+- **Workflow Trading Mode = Paper:** Executes real trades on paper trading account
+- **Credentials:** Always forced to use paper trading credentials when executing real trades
 - **Purpose:** Allows users to test complete workflows with real API calls, but safely on paper trading accounts
 
 **Key Characteristics:**
@@ -39,6 +64,7 @@ n8n provides three distinct execution contexts where a node can be executed:
 - Execution mode is `manual`
 - Workflow is inactive (`active: false`)
 - No `destinationNode` restriction (full workflow execution)
+- Behavior depends on workflow `tradingMode` setting
 
 ### 3. Active (Production Execution)
 
@@ -46,14 +72,16 @@ n8n provides three distinct execution contexts where a node can be executed:
 
 **Behavior:**
 
-- **Credentials:** Uses the credentials as configured by the user (can be live or paper)
-- **Trade Execution:** **Real trades ARE executed** using the configured credentials
-- **Purpose:** Production trading execution with full control over live vs paper trading
+- **Workflow Trading Mode = Mock:** Returns mocked responses (no real trades)
+- **Workflow Trading Mode = Paper:** Executes real trades on paper trading account (credentials forced to paper)
+- **Credentials:** When in paper mode, forced to use paper trading. When workflow trading mode is not set, uses credentials as configured by the user (can be live or paper)
+- **Trade Execution:** Depends on workflow `tradingMode` setting
 
 **Key Characteristics:**
 
 - Workflow is active (`active: true`)
 - Execution mode can be any value (not necessarily `manual`)
+- Behavior depends on workflow `tradingMode` setting
 
 ## Implementation Details
 
@@ -94,48 +122,74 @@ export function getOrderExecutionContext(context: IExecuteFunctions): OrderExecu
 
 ### Node Implementation
 
-Nodes with ORDER metadata tag check for the tag and apply the appropriate logic:
+Nodes with ORDER metadata tag check for the tag and apply the appropriate logic using `OrderNodeExecutor.determineExecutionBehavior()`:
 
 ```typescript
+import { OrderNodeExecutor } from '../../utils/order-node-executor';
+
 // Check if node has ORDER metadata tag
 const nodeType = (this as any).nodeType;
-const hasOrderMetadata = nodeType?.description?.metadata?.tags?.includes('ORDER') ?? false;
+const hasOrderMetadata = OrderNodeExecutor.hasOrderMetadata(nodeType);
 
 if (hasOrderMetadata) {
 	const executionContext = getOrderExecutionContext(this);
+	const operation = this.getNodeParameter('operation', 0);
+	const isTradeOperation = OrderNodeExecutor.isTradeOperation(operation);
 
-	if (executionContext === 'execute-step') {
+	const executionResult = OrderNodeExecutor.determineExecutionBehavior(this, {
+		hasOrderMetadata,
+		executionContext,
+		isTradeOperation,
+	});
+
+	if (executionResult.shouldMock) {
+		// Return mocked response (no real API call)
+		return [[{ json: mockTradeResponse }]];
+	} else if (executionResult.forcePaperTrading) {
 		// Force paper trading credentials
-		// Mock the response (no real API call)
-	} else if (executionContext === 'manual-inactive') {
-		// Force paper trading credentials
+		credentials = OrderNodeExecutor.forcePaperTradingCredentials(credentials);
 		// Execute real trade on paper account
-	} else if (executionContext === 'active') {
+	} else {
 		// Use credentials as configured
 		// Execute real trade
 	}
 }
 ```
 
+The `determineExecutionBehavior()` method automatically:
+
+1. Checks if execution is "execute-step" (always mocks)
+2. Checks workflow `tradingMode` setting (mock vs paper)
+3. Determines appropriate behavior based on execution context and workflow settings
+
 ## Safety Guarantees
 
-### Execute Step Mode
+### Execute Step Mode (Node-Level)
 
-- ✅ **Cannot execute real trades** - Mocked responses only
+- ✅ **ALWAYS mocked** - Cannot execute real trades, regardless of workflow settings
 - ✅ **Cannot use live credentials** - Paper trading forced
 - ✅ **Safe for testing** - No financial risk
+- ✅ **Overrides workflow settings** - Always safe, even if workflow is in paper mode
 
-### Manual Inactive Mode
+### Workflow-Level Mock Mode
+
+- ✅ **All trades mocked** - No real trades executed, regardless of execution context
+- ✅ **No API calls** - Completely safe for testing
+- ✅ **Applies to all ORDER nodes** - Consistent behavior across all trading nodes in workflow
+
+### Workflow-Level Paper Mode
+
+#### Manual Inactive Execution
 
 - ✅ **Cannot use live credentials** - Paper trading forced
 - ✅ **Real API calls** - Tests actual integration
-- ✅ **Safe for testing** - No financial risk
+- ✅ **Safe for testing** - No financial risk (paper account only)
 
-### Active Mode
+#### Active Execution
 
-- ⚠️ **Can use live credentials** - User has full control
-- ⚠️ **Real trades executed** - Production behavior
-- ⚠️ **Financial risk** - Only use when workflow is ready
+- ⚠️ **Paper trading forced** - Even if user configured live credentials, paper is used
+- ⚠️ **Real trades executed** - But only on paper account
+- ✅ **No financial risk** - Paper account only
 
 ## Adding ORDER Metadata to New Nodes
 

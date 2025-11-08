@@ -7,6 +7,7 @@ import WorkflowHistoryButton from '@/features/workflows/workflowHistory/componen
 import PushConnectionTracker from '@/app/components/PushConnectionTracker.vue';
 import SaveButton from '@/app/components/SaveButton.vue';
 import WorkflowActivator from '@/app/components/WorkflowActivator.vue';
+import TradingModeToggle from '@/app/components/TradingModeToggle.vue';
 import WorkflowProductionChecklist from '@/app/components/WorkflowProductionChecklist.vue';
 import WorkflowTagsContainer from '@/features/shared/tags/components/WorkflowTagsContainer.vue';
 import WorkflowTagsDropdown from '@/features/shared/tags/components/WorkflowTagsDropdown.vue';
@@ -32,6 +33,7 @@ import { useTagsStore } from '@/features/shared/tags/tags.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useUsersStore } from '@/features/settings/users/users.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useRootStore } from '@n8n/stores/useRootStore';
 
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
@@ -165,6 +167,20 @@ const onExecutionsTab = computed(() => {
 });
 
 const workflowPermissions = computed(() => getResourcePermissions(props.scopes).workflow);
+
+const nodeTypesStore = useNodeTypesStore();
+
+// Check if workflow has any ORDER nodes (trading nodes)
+const hasOrderNodes = computed(() => {
+	if (isNewWorkflow.value) return false;
+	const nodes = workflowsStore.workflow.nodes;
+	if (!nodes || nodes.length === 0) return false;
+
+	// Known ORDER nodes (should match the list in NodeExecuteButton.vue)
+	const knownOrderNodes = ['n8n-nodes-base.alpacaMarkets'];
+
+	return nodes.some((node) => knownOrderNodes.includes(node.type));
+});
 
 const workflowMenuItems = computed<Array<ActionDropdownItem<WORKFLOW_MENU_ACTIONS>>>(() => {
 	const actions: Array<ActionDropdownItem<WORKFLOW_MENU_ACTIONS>> = [
@@ -775,6 +791,11 @@ onBeforeUnmount(() => {
 	nodeViewEventBus.off('addTag', onTagsEditEnable);
 });
 
+const onTradingModeToggle = async (value: { id: string; tradingMode: 'mock' | 'paper' }) => {
+	// Trading mode is already updated by TradingModeToggle component
+	// This handler can be used for additional logic if needed
+};
+
 const onWorkflowActiveToggle = async (value: { id: string; active: boolean }) => {
 	if (!value.active) {
 		emit('workflow:deactivated');
@@ -886,6 +907,13 @@ const onWorkflowActiveToggle = async (value: { id: string; active: boolean }) =>
 					:workflow-id="id"
 					:workflow-permissions="workflowPermissions"
 					@update:workflow-active="onWorkflowActiveToggle"
+				/>
+				<TradingModeToggle
+					v-if="hasOrderNodes"
+					class="ml-2xs"
+					:workflow-id="id"
+					:workflow-permissions="workflowPermissions"
+					@update:trading-mode="onTradingModeToggle"
 				/>
 			</span>
 			<EnterpriseEdition :features="[EnterpriseEditionFeature.Sharing]">

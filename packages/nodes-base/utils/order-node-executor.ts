@@ -32,7 +32,7 @@ export class OrderNodeExecutor {
 	}
 
 	/**
-	 * Determine ORDER node execution behavior based on context
+	 * Determine ORDER node execution behavior based on context and workflow settings
 	 */
 	static determineExecutionBehavior(
 		context: IExecuteFunctions,
@@ -66,16 +66,35 @@ export class OrderNodeExecutor {
 			detectedContext = this.refineExecutionContext(context, detectedContext);
 		}
 
+		// Get workflow trading mode setting
+		const workflow = context.getWorkflow();
+		const workflowSettings = workflow.settings || {};
+		const tradingMode = (workflowSettings.tradingMode as 'mock' | 'paper') || 'mock';
+
+		// Execute step: ALWAYS mock (node-level override)
+		if (detectedContext === OrderExecutionContext.ExecuteStep) {
+			return {
+				context: detectedContext,
+				shouldMock: true,
+				forcePaperTrading: true,
+				executeRealTrade: false,
+			};
+		}
+
+		// For workflow-level execution (manual-inactive or active), check workflow trading mode
+		if (tradingMode === 'mock') {
+			// Workflow is in mock mode: mock all trades regardless of context
+			return {
+				context: detectedContext,
+				shouldMock: true,
+				forcePaperTrading: true,
+				executeRealTrade: false,
+			};
+		}
+
+		// Workflow is in paper mode: execute real trades on paper account
 		// Determine behavior based on context
 		switch (detectedContext) {
-			case OrderExecutionContext.ExecuteStep:
-				return {
-					context: detectedContext,
-					shouldMock: true,
-					forcePaperTrading: true,
-					executeRealTrade: false,
-				};
-
 			case OrderExecutionContext.ManualInactive:
 				return {
 					context: detectedContext,
