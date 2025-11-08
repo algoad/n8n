@@ -316,11 +316,73 @@ onMounted(async () => {
 	becomeTemplateCreatorStore.startMonitoringCta();
 
 	await nextTick(onResizeEnd);
+
+	// Function to enforce sidebar hidden state
+	const enforceSidebarHidden = () => {
+		const sidebarElement = document.getElementById('side-menu');
+		const sidebarContainer = document.getElementById('sidebar');
+
+		if (sidebarElement) {
+			const computedStyle = window.getComputedStyle(sidebarElement);
+			if (computedStyle.display !== 'none' || computedStyle.visibility !== 'hidden') {
+				sidebarElement.style.setProperty('display', 'none', 'important');
+				sidebarElement.style.setProperty('visibility', 'hidden', 'important');
+				sidebarElement.style.setProperty('width', '0', 'important');
+				sidebarElement.style.setProperty('height', '0', 'important');
+				sidebarElement.style.setProperty('overflow', 'hidden', 'important');
+			}
+		}
+
+		if (sidebarContainer) {
+			const computedStyle = window.getComputedStyle(sidebarContainer);
+			if (computedStyle.display !== 'none' || computedStyle.visibility !== 'hidden') {
+				sidebarContainer.style.setProperty('display', 'none', 'important');
+				sidebarContainer.style.setProperty('visibility', 'hidden', 'important');
+				sidebarContainer.style.setProperty('width', '0', 'important');
+				sidebarContainer.style.setProperty('height', '0', 'important');
+				sidebarContainer.style.setProperty('overflow', 'hidden', 'important');
+			}
+		}
+	};
+
+	// Initial hide
+	enforceSidebarHidden();
+
+	// MutationObserver to prevent DOM manipulation
+	const observer = new MutationObserver(() => {
+		enforceSidebarHidden();
+	});
+
+	// Observe the document body for any changes
+	observer.observe(document.body, {
+		attributes: true,
+		attributeFilter: ['style', 'class'],
+		childList: true,
+		subtree: true,
+		attributeOldValue: false,
+	});
+
+	// Periodic check as backup (every 100ms)
+	const intervalId = setInterval(enforceSidebarHidden, 100);
+
+	// Store observer and interval for cleanup
+	(window as any).__sidebarObserver = observer;
+	(window as any).__sidebarInterval = intervalId;
 });
 
 onBeforeUnmount(() => {
 	becomeTemplateCreatorStore.stopMonitoringCta();
 	window.removeEventListener('resize', onResize);
+
+	// Clean up MutationObserver and interval
+	if ((window as any).__sidebarObserver) {
+		(window as any).__sidebarObserver.disconnect();
+		delete (window as any).__sidebarObserver;
+	}
+	if ((window as any).__sidebarInterval) {
+		clearInterval((window as any).__sidebarInterval);
+		delete (window as any).__sidebarInterval;
+	}
 });
 
 const trackHelpItemClick = (itemType: string) => {
@@ -606,7 +668,11 @@ onClickOutside(createBtn as Ref<VueInstance>, () => {
 .sideMenu {
 	position: relative;
 	height: 100%;
-	display: flex;
+	display: none !important;
+	visibility: hidden !important;
+	width: 0 !important;
+	height: 0 !important;
+	overflow: hidden !important;
 	flex-direction: column;
 	border-right: var(--border-width) var(--border-style) var(--color--foreground);
 	width: $sidebar-expanded-width;

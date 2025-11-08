@@ -154,7 +154,11 @@ useExposeCssVar('--ask-assistant--floating-button--margin-bottom', askAiFloating
 			<div id="header" :class="$style.header">
 				<RouterView name="header" />
 			</div>
-			<div v-if="usersStore.currentUser" id="sidebar" :class="$style.sidebar">
+			<div
+				v-if="usersStore.currentUser"
+				id="sidebar"
+				:class="[$style.sidebar, $style.sidebarHidden]"
+			>
 				<RouterView name="sidebar" />
 			</div>
 			<div id="content" :class="$style.content">
@@ -208,9 +212,9 @@ useExposeCssVar('--ask-assistant--floating-button--margin-bottom', askAiFloating
 	height: 100vh;
 	grid-template-areas:
 		'banners banners'
-		'sidebar header'
-		'sidebar content';
-	grid-template-columns: auto 1fr;
+		'header header'
+		'content content';
+	grid-template-columns: 1fr;
 	grid-template-rows: auto auto 1fr;
 }
 
@@ -264,6 +268,14 @@ useExposeCssVar('--ask-assistant--floating-button--margin-bottom', askAiFloating
 .sidebar {
 	grid-area: sidebar;
 	z-index: var(--app-sidebar--z);
+}
+
+.sidebarHidden {
+	display: none !important;
+	visibility: hidden !important;
+	width: 0 !important;
+	height: 0 !important;
+	overflow: hidden !important;
 }
 
 .modals {

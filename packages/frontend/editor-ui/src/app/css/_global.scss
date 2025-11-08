@@ -284,3 +284,15 @@
 		}
 	}
 }
+
+// Hide n8n left sidebar - prevent DOM manipulation
+#sidebar,
+#side-menu {
+	display: none !important;
+	visibility: hidden !important;
+	width: 0 !important;
+	height: 0 !important;
+	overflow: hidden !important;
+	opacity: 0 !important;
+	pointer-events: none !important;
+}
