@@ -205,4 +205,53 @@ export class AuthController {
 		this.authService.clearCookie(res);
 		return { loggedOut: true };
 	}
+
+	/**
+	 * Custom endpoint for Playbook integration
+	 * Accepts a JWT token from Playbook, validates it, and sets n8n auth cookie
+	 * GET /rest/playbook-callback?token=<jwt-token>
+	 */
+	@Get('/playbook-callback', { skipAuth: true })
+	async playbookCallback(req: AuthlessRequest<{}, {}, {}, { token?: string }>, res: Response) {
+		try {
+			const token = req.query.token ?? '';
+			if (!token) {
+				return res.status(400).send('Missing token parameter');
+			}
+
+			// Verify the token using n8n's JWT service
+			// The token should be signed with N8N_USER_MANAGEMENT_JWT_SECRET
+			const { JwtService } = await import('@/services/jwt.service');
+			const jwtService = Container.get(JwtService);
+
+			let payload: any;
+			try {
+				// Verify token - don't check issuer since Playbook uses custom issuer
+				payload = jwtService.verify(token, {});
+			} catch (error) {
+				this.logger.warn('Invalid token in playbook callback', { error });
+				return res.status(401).send('Invalid token');
+			}
+
+			// Look up the user by ID from the token
+			const user = await this.userRepository.findOne({
+				where: { id: payload.id },
+				relations: ['role'],
+			});
+
+			if (!user || user.disabled) {
+				return res.status(401).send('User not found or disabled');
+			}
+
+			// Set the n8n auth cookie
+			this.authService.issueCookie(res, user, false, req.browserId);
+
+			// Redirect to n8n frontend
+			const frontendUrl = process.env.N8N_EDITOR_URL || 'http://localhost:8080';
+			return res.redirect(frontendUrl);
+		} catch (error) {
+			this.logger.error('Error in playbook callback', { error });
+			return res.status(500).send('Authentication failed');
+		}
+	}
 }

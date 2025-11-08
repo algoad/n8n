@@ -92,6 +92,7 @@ export const CHAIN_SUMMARIZATION_LANGCHAIN_NODE_TYPE =
 export const SIMULATE_NODE_TYPE = 'n8n-nodes-base.simulate';
 export const SIMULATE_TRIGGER_NODE_TYPE = 'n8n-nodes-base.simulateTrigger';
 export const AI_TRANSFORM_NODE_TYPE = 'n8n-nodes-base.aiTransform';
+export const ALPACA_MARKETS_NODE_TYPE = 'n8n-nodes-base.alpacaMarkets';
 export const FORM_NODE_TYPE = 'n8n-nodes-base.form';
 export const GITHUB_NODE_TYPE = 'n8n-nodes-base.github';
 export const SLACK_TRIGGER_NODE_TYPE = 'n8n-nodes-base.slackTrigger';

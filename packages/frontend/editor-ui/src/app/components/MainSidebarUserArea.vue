@@ -19,28 +19,18 @@ const i18n = useI18n();
 const router = useRouter();
 const usersStore = useUsersStore();
 
+// Removed logout option - authentication is managed by parent app (Playbook)
+// Users should logout from the Playbook app, not from n8n directly
 const userMenuItems = ref<IMenuItem[]>([
 	{
 		id: 'settings',
 		icon: 'settings',
 		label: i18n.baseText('settings'),
 	},
-	{
-		id: 'logout',
-		icon: 'door-open',
-		label: i18n.baseText('auth.signout'),
-	},
 ]);
-
-const onLogout = () => {
-	void router.push({ name: VIEWS.SIGNOUT });
-};
 
 const onUserActionToggle = (action: string) => {
 	switch (action) {
-		case 'logout':
-			onLogout();
-			break;
 		case 'settings':
 			void router.push({ name: VIEWS.SETTINGS });
 			break;

@@ -313,53 +313,22 @@ export class UsersController {
 	@Patch('/:id/role')
 	@GlobalScope('user:changeRole')
 	@Licensed('feat:advancedPermissions')
-	async changeGlobalRole(
+	changeGlobalRole(
 		req: AuthenticatedRequest,
 		_: Response,
 		@Body payload: RoleChangeRequestDto,
 		@Param('id') id: string,
 	) {
-		const { NO_ADMIN_ON_OWNER, NO_USER, NO_OWNER_ON_OWNER } =
-			UsersController.ERROR_MESSAGES.CHANGE_ROLE;
-
-		const targetUser = await this.userRepository.findOne({
-			where: { id },
-			relations: ['role'],
-		});
-		if (targetUser === null) {
-			throw new NotFoundError(NO_USER);
-		}
-
-		if (
-			req.user.role.slug === GLOBAL_ADMIN_ROLE.slug &&
-			targetUser.role.slug === GLOBAL_OWNER_ROLE.slug
-		) {
-			throw new ForbiddenError(NO_ADMIN_ON_OWNER);
-		}
-
-		if (
-			req.user.role.slug === GLOBAL_OWNER_ROLE.slug &&
-			targetUser.role.slug === GLOBAL_OWNER_ROLE.slug
-		) {
-			throw new ForbiddenError(NO_OWNER_ON_OWNER);
-		}
-
-		await this.userService.changeUserRole(req.user, targetUser, payload);
-
-		this.eventService.emit('user-changed-role', {
+		// SECURITY: Block all role changes
+		// In B2C SaaS, users should NEVER be able to change roles
+		// All users must remain as global:member
+		this.logger.warn('SECURITY BLOCKED: Role change attempt blocked', {
 			userId: req.user.id,
-			targetUserId: targetUser.id,
-			targetUserNewRole: payload.newRoleName,
-			publicApi: false,
+			targetUserId: id,
+			attemptedRole: payload.newRoleName,
 		});
-
-		const projects = await this.projectService.getUserOwnedOrAdminProjects(targetUser.id);
-		await Promise.all(
-			projects.map(
-				async (p) => await this.projectService.clearCredentialCanUseExternalSecretsCache(p.id),
-			),
+		throw new ForbiddenError(
+			'Role changes are not allowed. All users must have the global:member role.',
 		);
-
-		return { success: true };
 	}
 }

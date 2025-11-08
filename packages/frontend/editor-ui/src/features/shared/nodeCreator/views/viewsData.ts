@@ -50,6 +50,8 @@ import {
 	HTTP_REQUEST_NODE_TYPE,
 	HELPERS_SUBCATEGORY,
 	HITL_SUBCATEGORY,
+	TRADE_SUBCATEGORY,
+	TRADING_CATEGORY,
 	RSS_READ_NODE_TYPE,
 	EMAIL_SEND_NODE_TYPE,
 	EDIT_IMAGE_NODE_TYPE,
@@ -59,6 +61,7 @@ import {
 	HUMAN_IN_THE_LOOP_CATEGORY,
 	TEMPLATE_CATEGORY_AI,
 	DATA_TABLE_NODE_TYPE,
+	ALPACA_MARKETS_NODE_TYPE,
 } from '@/app/constants';
 import { useI18n } from '@n8n/i18n';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
@@ -598,6 +601,23 @@ export function RegularView(nodes: SimplifiedNodeType[]) {
 								CODE_NODE_TYPE,
 								DATA_TABLE_NODE_TYPE,
 							],
+						},
+					],
+				},
+			},
+			{
+				type: 'subcategory',
+				key: TRADE_SUBCATEGORY,
+				category: TRADING_CATEGORY,
+				properties: {
+					title: TRADE_SUBCATEGORY,
+					icon: 'chart-line',
+					description: 'Execute trades and manage positions',
+					sections: [
+						{
+							key: 'brokers',
+							title: 'Brokers',
+							items: [ALPACA_MARKETS_NODE_TYPE],
 						},
 					],
 				},
