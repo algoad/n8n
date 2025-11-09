@@ -26,7 +26,9 @@ export async function sendOrderToAPI(
 	const execContext = getTradingExecutionContext(context);
 
 	// Get API base URL from environment or use default
-	const baseUrl = apiBaseUrl || process.env.TRADING_API_BASE_URL || 'http://localhost:3001';
+	// Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues
+	// API runs on port 3005 (see apps/api/src/main.ts)
+	const baseUrl = apiBaseUrl ?? process.env.PLAYBOOK_API_BASE_URL ?? 'http://127.0.0.1:3005';
 
 	// Determine the endpoint based on order type
 	const endpointMap = {
@@ -45,31 +47,40 @@ export async function sendOrderToAPI(
 		workflowId: execContext.workflowId,
 		executionId: execContext.executionId,
 		executionMode: execContext.executionMode,
+		// Include executionContext if it was passed in orderData
+		executionContext: orderData.executionContext,
 	};
 
 	// Get user ID from context
 	const userId = execContext.userId;
 
-	if (!userId) {
-		throw new Error('User ID not available in execution context. Cannot track order.');
-	}
-
 	// Prepare headers with authentication
-	// Option 1: Service-to-service API key (recommended for production)
-	const apiKey = process.env.TRADING_API_KEY;
+	const apiKey = process.env.PLAYBOOK_API_KEY;
 	const headers: IDataObject = {
 		'Content-Type': 'application/json',
 	};
 
 	if (apiKey) {
 		headers['X-API-Key'] = apiKey;
-		headers['X-User-Id'] = userId;
+		// Include userId in header if available
+		if (userId) {
+			headers['X-User-Id'] = userId;
+		} else {
+			// For active workflows, userId might not be in execution context
+			// The API will look up the workflow owner from workflowId
+			// Just send the API key - the guard and controller will handle workflowId lookup
+			context.logger?.warn(
+				'User ID not available in execution context. API will attempt to resolve from workflowId. Order tracking may fail if workflow owner cannot be determined.',
+			);
+		}
 	} else {
-		// Option 2: If no API key, try to use JWT token from n8n context
-		// This would require n8n to pass the Supabase JWT token
-		// For now, we'll include user ID in the body and let the API handle it
-		// Note: The API endpoint will need to be updated to accept user ID in body
-		// or use a different authentication method
+		// No API key - require userId
+		if (!userId) {
+			throw new Error(
+				'User ID not available in execution context and no API key configured. Cannot track order.',
+			);
+		}
+		// Include userId in body for JWT fallback
 		body.userId = userId;
 	}
 

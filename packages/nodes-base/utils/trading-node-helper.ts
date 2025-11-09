@@ -3,8 +3,10 @@ import {
 	getTradingExecutionContext,
 	determineTestModeWithCredentials,
 	type TradingExecutionContext,
+	getOrderExecutionContext,
 } from './execution-context';
 import { sendOrderToAPI } from './trading-api-client';
+import { OrderExecutionContext } from './order-node-types';
 
 /**
  * Track an order after successful placement
@@ -21,6 +23,7 @@ export async function trackOrder(
 	orderType: 'stock' | 'crypto' | 'prediction-market' | 'sports-betting',
 	credentials?: IDataObject,
 	apiBaseUrl?: string,
+	orderExecutionContext?: OrderExecutionContext,
 ): Promise<IDataObject> {
 	// Get execution context
 	const execContext = getTradingExecutionContext(context);
@@ -36,11 +39,24 @@ export async function trackOrder(
 	// Determine environment from credentials
 	const environment = credentials?.environment === 'paper' ? 'paper' : 'live';
 
+	// Get OrderExecutionContext if not provided
+	let executionContext: OrderExecutionContext | undefined = orderExecutionContext;
+	if (!executionContext) {
+		try {
+			executionContext = getOrderExecutionContext(context);
+		} catch (error) {
+			// If we can't determine it, leave it undefined
+			context.logger?.warn('Could not determine OrderExecutionContext for tracking');
+		}
+	}
+
 	// Prepare order tracking data
 	const trackingData: IDataObject = {
 		...orderData,
 		environment,
 		executionMode: isTestMode ? 'test' : 'production',
+		// Convert enum to string for API serialization
+		executionContext: executionContext ? String(executionContext) : undefined,
 	};
 
 	// Send to API

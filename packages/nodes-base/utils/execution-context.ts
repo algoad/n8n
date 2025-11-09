@@ -32,7 +32,24 @@ export function getTradingExecutionContext(context: IExecuteFunctions): TradingE
 	// Get user ID from additionalData
 	// Access via the context's internal additionalData
 	const additionalData = (context as any).additionalData as { userId?: string } | undefined;
-	const userId = additionalData?.userId;
+	let userId = additionalData?.userId;
+
+	// Fallback: Try to get userId from workflow owner if not in additionalData
+	// This is needed for active workflows where userId might not be in execution context
+	if (!userId) {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const workflowAny = workflow as any;
+			// Try different possible properties for workflow owner
+			userId =
+				workflowAny.ownerId ||
+				workflowAny.userId ||
+				workflowAny.ownedBy?.id ||
+				workflowAny.owner?.id;
+		} catch (error) {
+			// Ignore errors, userId will remain undefined
+		}
+	}
 
 	// Determine test mode based on multiple factors
 	const isTestMode = determineTestMode(context, executionMode, workflow.active);

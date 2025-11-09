@@ -68,7 +68,8 @@ export class OrderNodeExecutor {
 
 		// Get workflow trading mode setting
 		const workflow = context.getWorkflow();
-		const workflowSettings = workflow.settings || {};
+		// Type assertion: workflow object has settings at runtime even though IWorkflowMetadata doesn't include it
+		const workflowSettings = (workflow as any).settings || {};
 		const tradingMode = (workflowSettings.tradingMode as 'mock' | 'paper') || 'mock';
 
 		// Execute step: ALWAYS mock (node-level override)

@@ -501,7 +501,15 @@ export class AlpacaMarkets implements INodeType {
 							},
 						};
 
-						await trackOrder(this, orderTrackingData, 'stock', credentials);
+						// Pass the execution context that was already determined
+						await trackOrder(
+							this,
+							orderTrackingData,
+							'stock',
+							credentials,
+							undefined,
+							executionResult.context,
+						);
 					} catch (trackingError) {
 						// Log tracking error but don't fail the node execution
 						// Order was successfully placed, tracking is non-critical
