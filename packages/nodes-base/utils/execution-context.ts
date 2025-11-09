@@ -1,5 +1,7 @@
 import type { IExecuteFunctions, IDataObject } from 'n8n-workflow';
 
+import type { ExecutionContextWithMode, WorkflowWithOwner } from './order-node-shared-types';
+
 export interface TradingExecutionContext {
 	workflowId: string | undefined;
 	executionId: string | undefined;
@@ -31,21 +33,21 @@ export function getTradingExecutionContext(context: IExecuteFunctions): TradingE
 
 	// Get user ID from additionalData
 	// Access via the context's internal additionalData
-	const additionalData = (context as any).additionalData as { userId?: string } | undefined;
+	const contextWithAdditionalData = context as ExecutionContextWithMode;
+	const additionalData = contextWithAdditionalData.additionalData;
 	let userId = additionalData?.userId;
 
 	// Fallback: Try to get userId from workflow owner if not in additionalData
 	// This is needed for active workflows where userId might not be in execution context
 	if (!userId) {
 		try {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const workflowAny = workflow as any;
+			const workflowWithOwner = workflow as WorkflowWithOwner;
 			// Try different possible properties for workflow owner
 			userId =
-				workflowAny.ownerId ||
-				workflowAny.userId ||
-				workflowAny.ownedBy?.id ||
-				workflowAny.owner?.id;
+				workflowWithOwner.ownerId ??
+				workflowWithOwner.userId ??
+				workflowWithOwner.ownedBy?.id ??
+				workflowWithOwner.owner?.id;
 		} catch (error) {
 			// Ignore errors, userId will remain undefined
 		}
@@ -134,17 +136,11 @@ export function getOrderExecutionContext(context: IExecuteFunctions): OrderExecu
 	const node = context.getNode();
 
 	// Access runExecutionData - it's a readonly property on NodeExecutionContext
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const contextAny = context as any;
-	const runExecutionData = contextAny.runExecutionData as
-		| {
-				startData?: { destinationNode?: string };
-		  }
-		| null
-		| undefined;
+	const contextWithMode = context as ExecutionContextWithMode;
+	const runExecutionData = contextWithMode.runExecutionData;
 
 	const destinationNode = runExecutionData?.startData?.destinationNode;
-	const mode = contextAny.mode ?? context.getMode();
+	const mode = contextWithMode.mode ?? context.getMode?.();
 	const isManual = mode === 'manual';
 	const isWorkflowActive = workflow.active;
 
@@ -175,20 +171,20 @@ export function getOrderExecutionContext(context: IExecuteFunctions): OrderExecu
 	// Note: We check isExecuteStep first as it's the most reliable indicator
 	if (isExecuteStep && isManual) {
 		// Even if workflow is active, if destinationNode matches, it's execute-step
-		return OrderExecutionContext.ExecuteStep;
+		return OrderExecutionContext.executeStep;
 	}
 
 	// 2. Manual inactive: manual mode and workflow is inactive
 	// This covers full workflow execution when inactive
 	if (isManual && !isWorkflowActive) {
-		return OrderExecutionContext.ManualInactive;
+		return OrderExecutionContext.manualInactive;
 	}
 
 	// 3. Active: workflow is active (regardless of mode)
 	if (isWorkflowActive) {
-		return OrderExecutionContext.Active;
+		return OrderExecutionContext.active;
 	}
 
 	// Default to manual-inactive for safety (prevents accidental live trades)
-	return OrderExecutionContext.ManualInactive;
+	return OrderExecutionContext.manualInactive;
 }

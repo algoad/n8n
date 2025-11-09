@@ -33,7 +33,7 @@ import { useUIStore } from '@/app/stores/ui.store';
 import type { ButtonType } from '@n8n/design-system';
 import { type IconName } from '@n8n/design-system/components/N8nIcon/icons';
 
-import { N8nButton, N8nTooltip } from '@n8n/design-system';
+import { N8nTooltip } from '@n8n/design-system';
 import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 const NODE_TEST_STEP_POPUP_COUNT_KEY = 'N8N_NODE_TEST_STEP_POPUP_COUNT';
 const MAX_POPUP_COUNT = 10;
@@ -431,42 +431,5 @@ async function onClick() {
 				{{ tooltipText }}
 			</slot>
 		</template>
-		<div
-			class="execute-button-container"
-			style="display: flex; flex-direction: column; align-items: right; gap: 4px"
-		>
-			<N8nButton
-				v-bind="$attrs"
-				:loading="isLoading && showLoadingSpinner"
-				:disabled="disabled || !!disabledHint || (isLoading && !showLoadingSpinner)"
-				:label="buttonLabel"
-				:type="type"
-				:size="size"
-				:icon="buttonIcon"
-				:square="square"
-				:transparent-background="transparent"
-				:title="
-					!isTriggerNode && !tooltipText ? i18n.baseText('ndv.execute.testNode.description') : ''
-				"
-				@mouseover="onMouseOver"
-				@click="onClick"
-			/>
-			<span
-				v-if="hasOrderMetadata"
-				class="paper-trade-badge"
-				style="
-					font-size: 11px;
-					color: #ff9800;
-					font-weight: 500;
-					white-space: nowrap;
-					padding: 2px 6px;
-					background-color: rgba(255, 152, 0, 0.1);
-					border-radius: 4px;
-					border: 1px solid rgba(255, 152, 0, 0.3);
-				"
-			>
-				Paper Trade
-			</span>
-		</div>
 	</N8nTooltip>
 </template>

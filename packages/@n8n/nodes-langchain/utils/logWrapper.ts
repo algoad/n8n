@@ -9,9 +9,9 @@ import { BaseRetriever } from '@langchain/core/retrievers';
 import { BaseDocumentCompressor } from '@langchain/core/retrievers/document_compressors';
 import type { StructuredTool, Tool } from '@langchain/core/tools';
 import { VectorStore } from '@langchain/core/vectorstores';
+import { OpenAIEmbeddings, AzureOpenAIEmbeddings } from '@langchain/openai';
 import { TextSplitter } from '@langchain/textsplitters';
 import type { BaseDocumentLoader } from 'langchain/dist/document_loaders/base';
-import { OpenAIEmbeddings, AzureOpenAIEmbeddings } from '@langchain/openai';
 import type {
 	IDataObject,
 	IExecuteFunctions,

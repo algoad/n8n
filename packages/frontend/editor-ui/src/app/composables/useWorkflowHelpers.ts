@@ -579,13 +579,16 @@ export function useWorkflowHelpers() {
 			nodes.push(nodeData);
 		}
 
+		// Ensure settings are always included (use computed property for reactivity)
+		const workflowSettings = workflowsStore.workflowSettings ?? {};
+
 		const data: WorkflowData = {
 			name: workflowsStore.workflowName,
 			nodes,
 			pinData: workflowsStore.pinnedWorkflowData,
 			connections: workflowConnections,
 			active: workflowsStore.isWorkflowActive,
-			settings: workflowsStore.workflow.settings,
+			settings: workflowSettings,
 			tags: workflowsStore.workflowTags,
 			versionId: workflowsStore.workflow.versionId,
 			meta: workflowsStore.workflow.meta,

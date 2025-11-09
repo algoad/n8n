@@ -26,10 +26,11 @@ import {
 } from 'n8n-workflow';
 import PCancelable from 'p-cancelable';
 
+import { EventService } from './events/event.service';
+
 import { ActiveExecutions } from '@/active-executions';
 import { ExecutionNotFoundError } from '@/errors/execution-not-found-error';
 import { MaxStalledCountError } from '@/errors/max-stalled-count.error';
-// eslint-disable-next-line import-x/no-cycle
 import {
 	getLifecycleHooksForRegularMain,
 	getLifecycleHooksForScalingWorker,
@@ -43,8 +44,6 @@ import type { ScalingService } from '@/scaling/scaling.service';
 import type { Job, JobData } from '@/scaling/scaling.types';
 import * as WorkflowExecuteAdditionalData from '@/workflow-execute-additional-data';
 import { WorkflowStaticDataService } from '@/workflows/workflow-static-data.service';
-
-import { EventService } from './events/event.service';
 
 @Service()
 export class WorkflowRunner {
@@ -221,6 +220,17 @@ export class WorkflowRunner {
 		let executionTimeout: NodeJS.Timeout;
 
 		const workflowSettings = data.workflowData.settings ?? {};
+
+		// Debug: Log workflow settings before creating Workflow object
+		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
+			this.logger.debug('[WorkflowRunner] runMainProcess - workflow settings:', {
+				workflowId: data.workflowData.id,
+				hasSettings: 'settings' in data.workflowData,
+				settings: workflowSettings,
+				settingsKeys: Object.keys(workflowSettings),
+			});
+		}
+
 		let workflowTimeout = workflowSettings.executionTimeout ?? this.executionsConfig.timeout; // initialize with default
 		if (workflowTimeout > 0) {
 			workflowTimeout = Math.min(workflowTimeout, this.executionsConfig.maxTimeout);

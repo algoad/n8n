@@ -1,4 +1,5 @@
 import type { IExecuteFunctions, IDataObject } from 'n8n-workflow';
+
 import { getTradingExecutionContext, determineTestModeWithCredentials } from './execution-context';
 
 describe('Execution Context Utilities', () => {

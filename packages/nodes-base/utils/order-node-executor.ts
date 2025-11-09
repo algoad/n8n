@@ -1,6 +1,7 @@
 import type { IExecuteFunctions, IDataObject } from 'n8n-workflow';
 
 import { getOrderExecutionContext } from './execution-context';
+import type { ExecutionContextWithMode, WorkflowWithSettings } from './order-node-shared-types';
 import {
 	OrderExecutionContext,
 	TradingEnvironment,
@@ -20,7 +21,7 @@ export class OrderNodeExecutor {
 		nodeType: { description?: { metadata?: { tags?: string[] } } } | null | undefined,
 	): boolean {
 		if (!nodeType?.description) return false;
-		const metadata = (nodeType.description as { metadata?: { tags?: string[] } })?.metadata;
+		const metadata = nodeType.description.metadata;
 		return metadata?.tags?.includes('ORDER') ?? false;
 	}
 
@@ -43,7 +44,7 @@ export class OrderNodeExecutor {
 		// If not an ORDER node or not a trade operation, use default behavior
 		if (!hasOrderMetadata || !isTradeOperation) {
 			return {
-				context: executionContext || OrderExecutionContext.ManualInactive,
+				context: executionContext ?? OrderExecutionContext.manualInactive,
 				shouldMock: false,
 				forcePaperTrading: false,
 				executeRealTrade: true,
@@ -57,23 +58,32 @@ export class OrderNodeExecutor {
 				detectedContext = getOrderExecutionContext(context);
 			} catch (error) {
 				// Default to execute-step for safety if detection fails
-				detectedContext = OrderExecutionContext.ExecuteStep;
+				detectedContext = OrderExecutionContext.executeStep;
 			}
 		}
 
-		// Additional safety checks for execute-step detection
-		if (detectedContext === OrderExecutionContext.ManualInactive) {
-			detectedContext = this.refineExecutionContext(context, detectedContext);
-		}
-
 		// Get workflow trading mode setting
-		const workflow = context.getWorkflow();
-		// Type assertion: workflow object has settings at runtime even though IWorkflowMetadata doesn't include it
-		const workflowSettings = (workflow as any).settings || {};
-		const tradingMode = (workflowSettings.tradingMode as 'mock' | 'paper') || 'mock';
+		const workflow = context.getWorkflow() as WorkflowWithSettings;
+		const workflowSettings = workflow.settings ?? {};
+		const tradingMode = workflowSettings.tradingMode ?? 'mock';
+		const isWorkflowActive = workflow.active;
+
+		// Debug logging
+		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
+			console.log('[OrderNodeExecutor] determineExecutionBehavior:', {
+				detectedContext,
+				tradingMode,
+				isWorkflowActive,
+				workflowId: workflow.id,
+				workflowSettingsKeys: Object.keys(workflowSettings),
+				workflowSettingsFull: workflowSettings,
+				workflowHasSettings: 'settings' in workflow,
+				workflowSettingsDirect: workflow.settings,
+			});
+		}
 
 		// Execute step: ALWAYS mock (node-level override)
-		if (detectedContext === OrderExecutionContext.ExecuteStep) {
+		if (detectedContext === OrderExecutionContext.executeStep) {
 			return {
 				context: detectedContext,
 				shouldMock: true,
@@ -82,63 +92,82 @@ export class OrderNodeExecutor {
 			};
 		}
 
-		// For workflow-level execution (manual-inactive or active), check workflow trading mode
-		if (tradingMode === 'mock') {
-			// Workflow is in mock mode: mock all trades regardless of context
+		// When workflow is ACTIVE: Always execute LIVE trades (ignore trading mode toggle)
+		// The trading mode toggle is disabled when active, so we always use live credentials
+		if (isWorkflowActive) {
 			return {
 				context: detectedContext,
-				shouldMock: true,
-				forcePaperTrading: true,
-				executeRealTrade: false,
+				shouldMock: false,
+				forcePaperTrading: false, // Use credentials as configured (live)
+				executeRealTrade: true,
 			};
 		}
 
-		// Workflow is in paper mode: execute real trades on paper account
-		// Determine behavior based on context
-		switch (detectedContext) {
-			case OrderExecutionContext.ManualInactive:
+		// When workflow is INACTIVE: Respect the trading mode toggle (mock vs paper)
+		// Additional safety checks for execute-step detection (only when inactive)
+		// Only refine if we're in ManualInactive - this helps distinguish execute-step from full workflow execution
+		if (detectedContext === OrderExecutionContext.manualInactive) {
+			const refinedContext = this.refineExecutionContext(context, detectedContext);
+			// Only use refined context if it's clearly execute-step
+			// If it stays ManualInactive, we proceed with workflow-level trading mode
+			if (refinedContext === OrderExecutionContext.executeStep) {
 				return {
-					context: detectedContext,
-					shouldMock: false,
-					forcePaperTrading: true,
-					executeRealTrade: true,
-				};
-
-			case OrderExecutionContext.Active:
-				return {
-					context: detectedContext,
-					shouldMock: false,
-					forcePaperTrading: false,
-					executeRealTrade: true,
-				};
-
-			default:
-				// Safety fallback: treat unknown as execute-step
-				return {
-					context: OrderExecutionContext.ExecuteStep,
+					context: refinedContext,
 					shouldMock: true,
 					forcePaperTrading: true,
 					executeRealTrade: false,
 				};
+			}
+			// Keep ManualInactive for workflow-level execution
+			detectedContext = refinedContext;
 		}
+
+		// Now handle inactive workflow with trading mode toggle
+		if (tradingMode === 'mock') {
+			// Inactive + Mock mode: mock all trades
+			return {
+				context: detectedContext,
+				shouldMock: true,
+				forcePaperTrading: true,
+				executeRealTrade: false,
+			};
+		}
+
+		// Inactive + Paper mode: execute real trades on paper account
+		const result = {
+			context: detectedContext,
+			shouldMock: false,
+			forcePaperTrading: true, // Force paper trading
+			executeRealTrade: true,
+		};
+
+		// Debug logging
+		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
+			console.log('[OrderNodeExecutor] Final result (Inactive + Paper):', result);
+		}
+
+		return result;
 	}
 
 	/**
 	 * Refine execution context detection using additional checks
+	 * This is a safety check to distinguish execute-step from full workflow execution
+	 * Only refines if BOTH conditions are met (no parent nodes AND minimal input)
+	 * to avoid incorrectly classifying full workflow executions as execute-step
 	 */
 	private static refineExecutionContext(
 		context: IExecuteFunctions,
 		currentContext: OrderExecutionContext,
 	): OrderExecutionContext {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const contextAny = context as any;
-		const mode = contextAny.mode ?? context.getMode();
-		const workflow = context.getWorkflow();
+		const contextWithMode = context as ExecutionContextWithMode;
+		const mode = contextWithMode.mode ?? context.getMode?.();
+		const workflow = context.getWorkflow() as WorkflowWithSettings;
 
+		// Only refine ManualInactive context when workflow is inactive and mode is manual
 		if (
 			mode === 'manual' &&
 			!workflow.active &&
-			currentContext === OrderExecutionContext.ManualInactive
+			currentContext === OrderExecutionContext.manualInactive
 		) {
 			try {
 				// Check parent nodes
@@ -151,22 +180,16 @@ export class OrderNodeExecutor {
 				const hasMinimalInput =
 					items.length === 0 || (items.length === 1 && Object.keys(items[0].json).length === 0);
 
-				// If no parent nodes or minimal input, this is likely execute-step
-				if (parentNodes.length === 0 || hasMinimalInput) {
-					return OrderExecutionContext.ExecuteStep;
+				// Only classify as execute-step if BOTH conditions are met:
+				// 1. No parent nodes (node is isolated)
+				// 2. Minimal or no input data
+				// This prevents full workflow executions from being incorrectly classified
+				if (parentNodes.length === 0 && hasMinimalInput) {
+					return OrderExecutionContext.executeStep;
 				}
 			} catch {
-				// If checks fail, use input data as fallback
-				try {
-					const items = context.getInputData();
-					const hasMinimalInput =
-						items.length === 0 || (items.length === 1 && Object.keys(items[0].json).length === 0);
-					if (hasMinimalInput) {
-						return OrderExecutionContext.ExecuteStep;
-					}
-				} catch {
-					// Ignore errors
-				}
+				// If checks fail, don't refine - keep ManualInactive
+				// This is safer than incorrectly classifying as execute-step
 			}
 		}
 
@@ -179,7 +202,7 @@ export class OrderNodeExecutor {
 	static forcePaperTradingCredentials<T extends IDataObject>(credentials: T): T {
 		return {
 			...credentials,
-			environment: TradingEnvironment.Paper,
+			environment: TradingEnvironment.paper,
 		} as T;
 	}
 
@@ -187,6 +210,6 @@ export class OrderNodeExecutor {
 	 * Check if credentials are using paper trading
 	 */
 	static isPaperTrading(credentials: IDataObject | undefined): boolean {
-		return credentials?.environment === TradingEnvironment.Paper;
+		return credentials?.environment === TradingEnvironment.paper;
 	}
 }

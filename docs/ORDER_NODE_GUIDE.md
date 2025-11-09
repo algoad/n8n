@@ -5,6 +5,7 @@ This guide explains how to create new ORDER nodes (trading nodes) using the reus
 ## Overview
 
 The ORDER node infrastructure provides:
+
 - **Automatic execution context detection** (execute-step, manual-inactive, active)
 - **Automatic paper trading enforcement** for safe testing
 - **Automatic mocking** in execute-step mode to prevent real trades
@@ -52,7 +53,11 @@ export class MyTradingNode implements INodeType {
 ### Step 2: Import Required Utilities
 
 ```typescript
-import { OrderOperation, TradingEnvironment, OrderExecutionContext } from '../../utils/order-node-types';
+import {
+	OrderOperation,
+	TradingEnvironment,
+	OrderExecutionContext,
+} from '../../utils/order-node-types';
 import { OrderNodeExecutor } from '../../utils/order-node-executor';
 ```
 
@@ -66,7 +71,7 @@ async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 	for (let i = 0; i < items.length; i++) {
 		try {
 			const operation = this.getNodeParameter('operation', i) as string;
-			
+
 			// Get node type to check for ORDER metadata
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const nodeType = (this as any).nodeType as INodeType | undefined;
@@ -89,7 +94,7 @@ async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 					const { getOrderExecutionContext } = await import('../../utils/execution-context');
 					config.executionContext = getOrderExecutionContext(this);
 				} catch (error) {
-					config.executionContext = OrderExecutionContext.ExecuteStep;
+					config.executionContext = OrderExecutionContext.executeStep;
 				}
 			}
 
@@ -104,15 +109,15 @@ async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 			}
 
 			// Determine base URL based on environment
-			const environment = (credentials.environment as TradingEnvironment) || TradingEnvironment.Paper;
-			const baseUrl = environment === TradingEnvironment.Paper
+			const environment = (credentials.environment as TradingEnvironment) || TradingEnvironment.paper;
+			const baseUrl = environment === TradingEnvironment.paper
 				? 'https://paper-api.example.com'
 				: 'https://api.example.com';
 
 			let responseData: IDataObject = {};
 
 			// Handle trade operations
-			if (operation === OrderOperation.PlaceOrder) {
+			if (operation === OrderOperation.placeOrder) {
 				// Build order request
 				const orderBody = { /* ... */ };
 
@@ -156,21 +161,24 @@ export function mockMyBrokerPlaceOrderResponse(body: IDataObject): IDataObject {
 
 ## Execution Contexts
 
-### Execute-Step (`OrderExecutionContext.ExecuteStep`)
+### Execute-Step (`OrderExecutionContext.executeStep`)
+
 - **When**: Single node execution during editing (clicking "Execute Step")
-- **Behavior**: 
+- **Behavior**:
   - Always mocks trade responses
   - Forces paper trading credentials
   - Never executes real trades
 
-### Manual-Inactive (`OrderExecutionContext.ManualInactive`)
+### Manual-Inactive (`OrderExecutionContext.manualInactive`)
+
 - **When**: Manual workflow execution when workflow is inactive
 - **Behavior**:
   - Executes real trades
   - Forces paper trading credentials
   - User cannot switch to live mode
 
-### Active (`OrderExecutionContext.Active`)
+### Active (`OrderExecutionContext.active`)
+
 - **When**: Workflow execution when workflow is active
 - **Behavior**:
   - Executes real trades
@@ -187,11 +195,11 @@ import { OrderOperation } from '../../utils/order-node-types';
 // In node properties
 {
 	name: 'Place Order',
-	value: OrderOperation.PlaceOrder,
+	value: OrderOperation.placeOrder,
 }
 
 // In execute method
-if (operation === OrderOperation.PlaceOrder) {
+if (operation === OrderOperation.placeOrder) {
 	// Handle place order
 }
 ```
@@ -202,7 +210,7 @@ if (operation === OrderOperation.PlaceOrder) {
 import { TradingEnvironment } from '../../utils/order-node-types';
 
 const environment = credentials.environment as TradingEnvironment;
-if (environment === TradingEnvironment.Paper) {
+if (environment === TradingEnvironment.paper) {
 	// Use paper trading URL
 }
 ```
@@ -225,16 +233,16 @@ See `AlpacaMarkets.node.ts` for a complete example of an ORDER node implementati
 To add a new operation type:
 
 1. Add to `OrderOperation` enum in `order-node-types.ts`:
+
 ```typescript
 export const enum OrderOperation {
-	PlaceOrder = 'placeOrder',
-	CancelOrder = 'cancelOrder',
-	ModifyOrder = 'modifyOrder',
-	NewOperation = 'newOperation', // Add here
+	placeOrder = 'placeOrder',
+	cancelOrder = 'cancelOrder',
+	modifyOrder = 'modifyOrder',
+	newOperation = 'newOperation', // Add here
 }
 ```
 
 2. Update `isTradeOperation()` in `order-node-executor.ts` if needed (it checks against all enum values automatically)
 
 3. Use the new enum value in your node properties and execute method
-

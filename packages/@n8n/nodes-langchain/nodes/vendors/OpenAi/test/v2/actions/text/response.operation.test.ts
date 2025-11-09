@@ -1,14 +1,15 @@
 import { mock, mockDeep } from 'jest-mock-extended';
+import type { Tool } from 'langchain/tools';
 import type { IExecuteFunctions, INode } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
 import { getConnectedTools } from '@utils/helpers';
+
 import { pollUntilAvailable } from '../../../../helpers/polling';
+import { formatToOpenAIResponsesTool } from '../../../../helpers/utils';
 import * as transport from '../../../../transport';
 import * as helpers from '../../../../v2/actions/text/helpers/responses';
 import { execute } from '../../../../v2/actions/text/response.operation';
-import { formatToOpenAIResponsesTool } from '../../../../helpers/utils';
-import type { Tool } from 'langchain/tools';
 
 jest.mock('../../../../transport');
 jest.mock('../../../../v2/actions/text/helpers/responses');

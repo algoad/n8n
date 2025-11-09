@@ -18,12 +18,12 @@ export function mockAlpacaPlaceOrderResponse(orderData: IDataObject): IDataObjec
 	const mockOrderId = `mock-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
 	// Mock filled quantity (for market orders, assume immediate fill)
-	const filledQty = qty || Math.floor((notional || 100) / 150); // Rough estimate
+	const filledQty = qty ?? Math.floor((notional ?? 100) / 150); // Rough estimate
 	const filledPrice = 150 + Math.random() * 10; // Mock price between 150-160
 
 	return {
 		id: mockOrderId,
-		client_order_id: orderData.client_order_id || mockOrderId,
+		client_order_id: orderData.client_order_id ?? mockOrderId,
 		created_at: new Date().toISOString(),
 		updated_at: new Date().toISOString(),
 		submitted_at: new Date().toISOString(),
@@ -37,8 +37,8 @@ export function mockAlpacaPlaceOrderResponse(orderData: IDataObject): IDataObjec
 		asset_id: `mock-asset-${symbol}`,
 		symbol,
 		asset_class: 'us_equity',
-		notional: notional || null,
-		qty: qty || null,
+		notional: notional ?? null,
+		qty: qty ?? null,
 		filled_qty: type === 'market' ? filledQty : 0,
 		filled_avg_price: type === 'market' ? filledPrice.toFixed(2) : null,
 		order_class: 'simple',
@@ -46,10 +46,10 @@ export function mockAlpacaPlaceOrderResponse(orderData: IDataObject): IDataObjec
 		type,
 		side,
 		time_in_force: timeInForce,
-		limit_price: orderData.limit_price || null,
-		stop_price: orderData.stop_price || null,
+		limit_price: orderData.limit_price ?? null,
+		stop_price: orderData.stop_price ?? null,
 		status: type === 'market' ? 'filled' : 'new',
-		extended_hours: orderData.extended_hours || false,
+		extended_hours: orderData.extended_hours ?? false,
 		legs: null,
 		trail_percent: null,
 		trail_price: null,

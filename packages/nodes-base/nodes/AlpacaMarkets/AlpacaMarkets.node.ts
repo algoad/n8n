@@ -10,6 +10,7 @@ import { NodeConnectionTypes } from 'n8n-workflow';
 
 import { mockAlpacaPlaceOrderResponse } from '../../utils/mock-trade-response';
 import { OrderNodeExecutor } from '../../utils/order-node-executor';
+import type { NodeTypeWithMetadata } from '../../utils/order-node-shared-types';
 import { TradingEnvironment, OrderExecutionContext } from '../../utils/order-node-types';
 import { trackOrder } from '../../utils/trading-node-helper';
 
@@ -348,11 +349,9 @@ export class AlpacaMarkets implements INodeType {
 				const operation = getParameter<string>('operation', 'placeOrder');
 
 				// Get node type to check for ORDER metadata
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const nodeType = (this as any).nodeType as INodeType | undefined;
-				const hasOrderMetadata = OrderNodeExecutor.hasOrderMetadata(
-					nodeType as { description?: { metadata?: { tags?: string[] } } } | null | undefined,
-				);
+				// The nodeType property exists on IExecuteFunctions at runtime but isn't in the type definition
+				const nodeType = (this as IExecuteFunctions & { nodeType?: NodeTypeWithMetadata }).nodeType;
+				const hasOrderMetadata = OrderNodeExecutor.hasOrderMetadata(nodeType);
 				const isTradeOperation = OrderNodeExecutor.isTradeOperation(operation);
 
 				// Determine execution behavior using ORDER node utilities
@@ -370,7 +369,7 @@ export class AlpacaMarkets implements INodeType {
 						config.executionContext = getOrderExecutionContext(this);
 					} catch (error) {
 						// Default to execute-step for safety if detection fails
-						config.executionContext = OrderExecutionContext.ExecuteStep;
+						config.executionContext = OrderExecutionContext.executeStep;
 					}
 				}
 
@@ -396,9 +395,9 @@ export class AlpacaMarkets implements INodeType {
 
 				// Determine base URL based on environment
 				const environment =
-					(credentials.environment as TradingEnvironment) || TradingEnvironment.Paper;
+					(credentials.environment as TradingEnvironment) ?? TradingEnvironment.paper;
 				const baseUrl =
-					environment === TradingEnvironment.Paper
+					environment === TradingEnvironment.paper
 						? 'https://paper-api.alpaca.markets'
 						: 'https://api.alpaca.markets';
 
@@ -501,7 +500,7 @@ export class AlpacaMarkets implements INodeType {
 							},
 						};
 
-						// Pass the execution context that was already determined
+						// Pass the execution context and shouldMock flag that was already determined
 						await trackOrder(
 							this,
 							orderTrackingData,
@@ -509,6 +508,7 @@ export class AlpacaMarkets implements INodeType {
 							credentials,
 							undefined,
 							executionResult.context,
+							executionResult.shouldMock,
 						);
 					} catch (trackingError) {
 						// Log tracking error but don't fail the node execution

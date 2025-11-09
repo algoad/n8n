@@ -1,6 +1,6 @@
+import { ApplicationError } from '@n8n/errors';
 import { DateTime, Duration, Interval } from 'luxon';
 
-import { ApplicationError } from '@n8n/errors';
 import { ExpressionExtensionError } from './errors/expression-extension.error';
 import { ExpressionError } from './errors/expression.error';
 import { evaluateExpression, setErrorHandler } from './expression-evaluator-proxy';
@@ -231,7 +231,7 @@ export class Expression {
 	 * @param {boolean} [returnObjectAsString=false]
 	 */
 	// TODO: Clean that up at some point and move all the options into an options object
-	// eslint-disable-next-line complexity
+
 	resolveSimpleParameterValue(
 		parameterValue: NodeParameterValue,
 		siblingParameters: INodeParameters,

@@ -1,12 +1,13 @@
 import type { IExecuteFunctions, IDataObject } from 'n8n-workflow';
+
 import {
 	getTradingExecutionContext,
 	determineTestModeWithCredentials,
 	type TradingExecutionContext,
 	getOrderExecutionContext,
 } from './execution-context';
-import { sendOrderToAPI } from './trading-api-client';
 import { OrderExecutionContext } from './order-node-types';
+import { sendOrderToAPI } from './trading-api-client';
 
 /**
  * Track an order after successful placement
@@ -15,15 +16,18 @@ import { OrderExecutionContext } from './order-node-types';
  * @param orderType - The type of order
  * @param credentials - The credentials object (for environment check)
  * @param apiBaseUrl - Optional API base URL
+ * @param orderExecutionContext - Optional execution context (if already determined)
+ * @param shouldMock - Whether the trade was mocked (skip database write if true)
  * @returns Promise resolving to tracking result
  */
 export async function trackOrder(
 	context: IExecuteFunctions,
 	orderData: IDataObject,
-	orderType: 'stock' | 'crypto' | 'prediction-market' | 'sports-betting',
+	orderType: 'stock' | 'crypto' | 'predictionMarket' | 'sportsBetting',
 	credentials?: IDataObject,
 	apiBaseUrl?: string,
 	orderExecutionContext?: OrderExecutionContext,
+	shouldMock?: boolean,
 ): Promise<IDataObject> {
 	// Get execution context
 	const execContext = getTradingExecutionContext(context);
@@ -50,6 +54,39 @@ export async function trackOrder(
 		}
 	}
 
+	// Check if we're in mock mode - skip database write if so
+	// If shouldMock is explicitly passed, use that (most reliable)
+	// Otherwise, fall back to checking execution context and workflow settings
+	let isMockMode: boolean;
+	if (shouldMock === true) {
+		// Explicitly true - definitely mock mode
+		isMockMode = true;
+	} else if (shouldMock === false) {
+		// Explicitly false - but still check execution context as safety
+		const isExecuteStep = executionContext === OrderExecutionContext.executeStep;
+		if (isExecuteStep) {
+			// Execute step always mocks, even if shouldMock says false (safety override)
+			isMockMode = true;
+		} else {
+			isMockMode = false;
+		}
+	} else {
+		// shouldMock is undefined - use fallback detection
+		const isExecuteStep = executionContext === OrderExecutionContext.executeStep;
+		// Type assertion: workflow object has settings at runtime even though IWorkflowMetadata doesn't include it
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+		const workflowSettings = (workflow as any).settings ?? {};
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+		const tradingMode = (workflowSettings.tradingMode as 'mock' | 'paper') ?? 'mock';
+		isMockMode = isExecuteStep || tradingMode === 'mock';
+	}
+
+	if (isMockMode) {
+		// Don't write to database in mock mode
+		context.logger?.info('Skipping database write for mock mode trade');
+		return {};
+	}
+
 	// Prepare order tracking data
 	const trackingData: IDataObject = {
 		...orderData,
@@ -60,7 +97,7 @@ export async function trackOrder(
 	};
 
 	// Send to API
-	return sendOrderToAPI(context, trackingData, orderType, apiBaseUrl);
+	return await sendOrderToAPI(context, trackingData, orderType, apiBaseUrl);
 }
 
 /**

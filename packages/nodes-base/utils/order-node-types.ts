@@ -5,27 +5,28 @@
 /**
  * Execution context types for ORDER metadata nodes
  */
-export enum OrderExecutionContext {
-	ExecuteStep = 'execute-step',
-	ManualInactive = 'manual-inactive',
-	Active = 'active',
+export const enum OrderExecutionContext {
+	executeStep = 'execute-step',
+	manualInactive = 'manual-inactive',
+	active = 'active',
 }
 
 /**
  * ORDER operation types that execute trades
  */
-export enum OrderOperation {
-	PlaceOrder = 'placeOrder',
-	CancelOrder = 'cancelOrder',
-	ModifyOrder = 'modifyOrder',
+export const enum OrderOperation {
+	placeOrder = 'placeOrder',
+	cancelOrder = 'cancelOrder',
+	modifyOrder = 'modifyOrder',
 }
 
 /**
  * Trading environment types
  */
-export enum TradingEnvironment {
-	Paper = 'paper',
-	Live = 'live',
+export const enum TradingEnvironment {
+	mock = 'mock',
+	paper = 'paper',
+	live = 'live',
 }
 
 /**

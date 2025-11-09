@@ -7,8 +7,6 @@ import {
 	type SupplyData,
 } from 'n8n-workflow';
 
-import type { LemonadeApiCredentialsType } from '../../../credentials/LemonadeApi.credentials';
-
 import { logWrapper } from '@utils/logWrapper';
 import { getConnectionHintNoticeField } from '@utils/sharedFields';
 
@@ -49,7 +47,7 @@ export class EmbeddingsLemonade implements INodeType {
 
 	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
 		const modelName = this.getNodeParameter('model', itemIndex) as string;
-		const credentials = (await this.getCredentials('lemonadeApi')) as LemonadeApiCredentialsType;
+		const credentials = await this.getCredentials('lemonadeApi');
 
 		// Ensure we have an API key for OpenAI client validation
 		const apiKey = credentials.apiKey || 'lemonade-placeholder-key';

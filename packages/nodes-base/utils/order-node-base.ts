@@ -7,6 +7,7 @@ import type {
 } from 'n8n-workflow';
 
 import { OrderNodeExecutor } from './order-node-executor';
+import type { NodeTypeWithMetadata } from './order-node-shared-types';
 import {
 	OrderExecutionContext,
 	TradingEnvironment,
@@ -62,10 +63,8 @@ export abstract class OrderNodeBase implements IOrderNode {
 		const returnData: INodeExecutionData[] = [];
 
 		// Get node type to check for ORDER metadata
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const nodeType = (this as any).nodeType as
-			| { description?: { metadata?: { tags?: string[] } } }
-			| undefined;
+		// The nodeType property exists on IExecuteFunctions at runtime but isn't in the type definition
+		const nodeType = (this as IExecuteFunctions & { nodeType?: NodeTypeWithMetadata }).nodeType;
 		const hasOrderMetadata = OrderNodeExecutor.hasOrderMetadata(nodeType);
 		const isTradeOperation = OrderNodeExecutor.isTradeOperation(operation);
 
@@ -77,7 +76,7 @@ export abstract class OrderNodeBase implements IOrderNode {
 				executionContext = getOrderExecutionContext(this);
 			} catch (error) {
 				// Default to execute-step for safety if detection fails
-				executionContext = OrderExecutionContext.ExecuteStep;
+				executionContext = OrderExecutionContext.executeStep;
 			}
 		}
 
@@ -101,8 +100,9 @@ export abstract class OrderNodeBase implements IOrderNode {
 		for (let i = 0; i < items.length; i++) {
 			try {
 				// Get credentials
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const credentialTypeName = (this as any).getCredentialTypeName();
+				// These methods exist on the node instance at runtime
+				const nodeInstance = this as IExecuteFunctions & IOrderNode;
+				const credentialTypeName = nodeInstance.getCredentialTypeName();
 				let credentials = await this.getCredentials(credentialTypeName, i);
 
 				// Force paper trading if needed
@@ -115,9 +115,8 @@ export abstract class OrderNodeBase implements IOrderNode {
 
 				// Determine base URL
 				const environment =
-					(credentials.environment as TradingEnvironment) || TradingEnvironment.Paper;
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const baseUrl = (this as any).getBaseUrl(environment);
+					(credentials.environment as TradingEnvironment) ?? TradingEnvironment.paper;
+				const baseUrl = nodeInstance.getBaseUrl(environment);
 
 				let responseData: IDataObject = {};
 
@@ -128,8 +127,7 @@ export abstract class OrderNodeBase implements IOrderNode {
 					this.logger?.warn(
 						'ORDER node: Mocking trade execution response. NO REAL TRADE WILL BE EXECUTED.',
 					);
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					responseData = (this as any).getMockTradeResponse(orderData);
+					responseData = nodeInstance.getMockTradeResponse(orderData);
 				} else if (executionResult.executeRealTrade) {
 					// Execute real trade
 					responseData = await executeTrade(credentials, baseUrl);
@@ -138,8 +136,7 @@ export abstract class OrderNodeBase implements IOrderNode {
 					this.logger?.warn(
 						'ORDER node: Neither mocking nor executing trade. This should not happen.',
 					);
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					responseData = (this as any).getMockTradeResponse(items[i].json);
+					responseData = nodeInstance.getMockTradeResponse(items[i].json);
 				}
 
 				// Return the response data

@@ -1,8 +1,9 @@
 import type { ILoadOptionsFunctions, INodeListSearchResult } from 'n8n-workflow';
 import OpenAI from 'openai';
 
-import { shouldIncludeModel } from '../../../vendors/OpenAi/helpers/modelFiltering';
 import { getProxyAgent } from '@utils/httpProxyAgent';
+
+import { shouldIncludeModel } from '../../../vendors/OpenAi/helpers/modelFiltering';
 
 export async function searchModels(
 	this: ILoadOptionsFunctions,

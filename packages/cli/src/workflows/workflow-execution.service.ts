@@ -164,6 +164,16 @@ export class WorkflowExecutionService {
 		workflowData.active = false;
 		workflowData.activeVersionId = null;
 
+		// Debug: Log workflow settings received from frontend
+		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
+			this.logger.debug('[WorkflowExecutionService] executeManually - workflowData received:', {
+				workflowId: workflowData.id,
+				hasSettings: 'settings' in workflowData,
+				settings: workflowData.settings,
+				settingsKeys: workflowData.settings ? Object.keys(workflowData.settings) : [],
+			});
+		}
+
 		// Start the workflow
 		const data: IWorkflowExecutionDataProcess = {
 			destinationNode,

@@ -1,9 +1,10 @@
 import type { IExecuteFunctions, IDataObject, IHttpRequestMethods } from 'n8n-workflow';
 
 import type { TradingExecutionContext } from './execution-context';
+import type { WorkflowWithSettings } from './order-node-shared-types';
 
 export interface OrderTrackingData {
-	type: 'stock' | 'crypto' | 'prediction-market' | 'sports-betting';
+	type: 'stock' | 'crypto' | 'predictionMarket' | 'sportsBetting';
 	orderData: IDataObject;
 	context: TradingExecutionContext;
 }
@@ -19,11 +20,24 @@ export interface OrderTrackingData {
 export async function sendOrderToAPI(
 	context: IExecuteFunctions,
 	orderData: IDataObject,
-	orderType: 'stock' | 'crypto' | 'prediction-market' | 'sports-betting',
+	orderType: 'stock' | 'crypto' | 'predictionMarket' | 'sportsBetting',
 	apiBaseUrl?: string,
 ): Promise<IDataObject> {
 	const { getTradingExecutionContext } = await import('./execution-context');
 	const execContext = getTradingExecutionContext(context);
+
+	// Safety check: Don't write to database if execution context is execute-step or trading mode is mock
+	const executionContext = orderData.executionContext as string | undefined;
+	const workflow = context.getWorkflow() as WorkflowWithSettings;
+	const workflowSettings = workflow.settings ?? {};
+	const tradingMode = workflowSettings.tradingMode ?? 'mock';
+	const isExecuteStep = executionContext === 'execute-step';
+	const isMockMode = isExecuteStep || tradingMode === 'mock';
+
+	if (isMockMode) {
+		context.logger?.info('Blocking database write - mock mode detected (safety check)');
+		return {};
+	}
 
 	// Get API base URL from environment or use default
 	// Use 127.0.0.1 instead of localhost to avoid IPv6 resolution issues
@@ -31,11 +45,11 @@ export async function sendOrderToAPI(
 	const baseUrl = apiBaseUrl ?? process.env.PLAYBOOK_API_BASE_URL ?? 'http://127.0.0.1:3005';
 
 	// Determine the endpoint based on order type
-	const endpointMap = {
+	const endpointMap: Record<'stock' | 'crypto' | 'predictionMarket' | 'sportsBetting', string> = {
 		stock: '/api/trading-orders/stock',
 		crypto: '/api/trading-orders/crypto',
-		'prediction-market': '/api/trading-orders/prediction-market',
-		'sports-betting': '/api/trading-orders/sports-betting',
+		predictionMarket: '/api/trading-orders/prediction-market',
+		sportsBetting: '/api/trading-orders/sports-betting',
 	};
 
 	const endpoint = endpointMap[orderType];
@@ -57,6 +71,7 @@ export async function sendOrderToAPI(
 	// Prepare headers with authentication
 	const apiKey = process.env.PLAYBOOK_API_KEY;
 	const headers: IDataObject = {
+		// eslint-disable-next-line @typescript-eslint/naming-convention -- HTTP header names use kebab-case
 		'Content-Type': 'application/json',
 	};
 
@@ -94,6 +109,7 @@ export async function sendOrderToAPI(
 	};
 
 	try {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- httpRequest returns any, we validate it's IDataObject compatible
 		const response = await context.helpers.httpRequest(options);
 		return response as IDataObject;
 	} catch (error: unknown) {
