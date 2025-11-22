@@ -58,3 +58,40 @@ export function mockAlpacaPlaceOrderResponse(orderData: IDataObject): IDataObjec
 		source: 'n8n-mock',
 	};
 }
+
+/**
+ * Mock response for Kalshi Place Order operation
+ * Used when executing ORDER nodes in "execute-step" mode to prevent real trades
+ * @param orderData - The order data that would be sent
+ * @returns A realistic mock response as if the order was executed
+ */
+export function mockKalshiPlaceOrderResponse(orderData: IDataObject): IDataObject {
+	const marketId = (orderData.market_id as string) || 'KALS-MOCK-MARKET';
+	const side = (orderData.side as string) || 'yes';
+	const count = (orderData.count as number) || 1;
+	const price = (orderData.price as number) || 50;
+	const type = (orderData.type as string) || 'limit';
+
+	// Generate a realistic mock order ID
+	const mockOrderId = `mock-kalshi-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+	// Mock filled quantity (for market orders, assume immediate fill)
+	const filledCount = type === 'market' ? count : 0;
+	const filledPrice = type === 'market' ? price : null;
+
+	return {
+		order_id: mockOrderId,
+		id: mockOrderId,
+		market_id: marketId,
+		side,
+		count,
+		price,
+		type,
+		status: type === 'market' ? 'filled' : 'pending',
+		created_at: new Date().toISOString(),
+		filled_at: type === 'market' ? new Date().toISOString() : null,
+		filled_count: filledCount,
+		filled_price: filledPrice,
+		source: 'n8n-mock',
+	};
+}

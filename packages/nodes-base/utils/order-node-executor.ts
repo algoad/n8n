@@ -69,28 +69,14 @@ export class OrderNodeExecutor {
 		const isWorkflowActive = workflow.active;
 
 		// Debug logging
-		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
-			console.log('[OrderNodeExecutor] determineExecutionBehavior:', {
-				detectedContext,
-				tradingMode,
-				isWorkflowActive,
-				workflowId: workflow.id,
-				workflowSettingsKeys: Object.keys(workflowSettings),
-				workflowSettingsFull: workflowSettings,
-				workflowHasSettings: 'settings' in workflow,
-				workflowSettingsDirect: workflow.settings,
-			});
-		}
-
-		// Execute step: ALWAYS mock (node-level override)
-		if (detectedContext === OrderExecutionContext.executeStep) {
-			return {
-				context: detectedContext,
-				shouldMock: true,
-				forcePaperTrading: true,
-				executeRealTrade: false,
-			};
-		}
+		console.log('[OrderNodeExecutor] determineExecutionBehavior:', {
+			detectedContext,
+			tradingMode,
+			isWorkflowActive,
+			workflowId: workflow.id,
+			workflowSettingsKeys: Object.keys(workflowSettings),
+			workflowSettingsFull: workflowSettings,
+		});
 
 		// When workflow is ACTIVE: Always execute LIVE trades (ignore trading mode toggle)
 		// The trading mode toggle is disabled when active, so we always use live credentials
@@ -104,27 +90,9 @@ export class OrderNodeExecutor {
 		}
 
 		// When workflow is INACTIVE: Respect the trading mode toggle (mock vs paper)
-		// Additional safety checks for execute-step detection (only when inactive)
-		// Only refine if we're in ManualInactive - this helps distinguish execute-step from full workflow execution
-		if (detectedContext === OrderExecutionContext.manualInactive) {
-			const refinedContext = this.refineExecutionContext(context, detectedContext);
-			// Only use refined context if it's clearly execute-step
-			// If it stays ManualInactive, we proceed with workflow-level trading mode
-			if (refinedContext === OrderExecutionContext.executeStep) {
-				return {
-					context: refinedContext,
-					shouldMock: true,
-					forcePaperTrading: true,
-					executeRealTrade: false,
-				};
-			}
-			// Keep ManualInactive for workflow-level execution
-			detectedContext = refinedContext;
-		}
 
-		// Now handle inactive workflow with trading mode toggle
+		// 1. Mock Mode (default): Mock everything
 		if (tradingMode === 'mock') {
-			// Inactive + Mock mode: mock all trades
 			return {
 				context: detectedContext,
 				shouldMock: true,
@@ -133,20 +101,14 @@ export class OrderNodeExecutor {
 			};
 		}
 
-		// Inactive + Paper mode: execute real trades on paper account
-		const result = {
+		// 2. Paper Mode: Execute REAL trades on PAPER account
+		// This applies to both full workflow execution (ManualInactive) AND single step execution (ExecuteStep)
+		return {
 			context: detectedContext,
 			shouldMock: false,
 			forcePaperTrading: true, // Force paper trading
 			executeRealTrade: true,
 		};
-
-		// Debug logging
-		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
-			console.log('[OrderNodeExecutor] Final result (Inactive + Paper):', result);
-		}
-
-		return result;
 	}
 
 	/**

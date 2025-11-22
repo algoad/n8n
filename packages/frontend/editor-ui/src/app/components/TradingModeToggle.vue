@@ -35,8 +35,13 @@ const currentTradingMode = computed<'mock' | 'paper'>(() => {
 
 const isPaperMode = computed(() => currentTradingMode.value === 'paper');
 
+const isWorkflowActive = computed((): boolean => {
+	const activeWorkflows = workflowsStore.activeWorkflows;
+	return activeWorkflows.includes(props.workflowId);
+});
+
 const disabled = computed((): boolean => {
-	return isNewWorkflow.value || !props.workflowPermissions.update;
+	return isNewWorkflow.value || !props.workflowPermissions.update || isWorkflowActive.value;
 });
 
 async function tradingModeChanged(newMode: string | number | boolean) {
@@ -67,11 +72,17 @@ async function tradingModeChanged(newMode: string | number | boolean) {
 <template>
 	<div class="trading-mode-toggle">
 		<div :class="$style.modeStatusText" data-test-id="trading-mode-toggle-status">
-			<N8nText :color="isPaperMode ? 'warning' : 'text-base'" size="small" bold>
+			<N8nText
+				:color="isPaperMode && !isWorkflowActive ? 'warning' : 'text-base'"
+				size="small"
+				bold
+			>
 				{{
-					isPaperMode
-						? i18n.baseText('tradingModeToggle.paper' as BaseTextKey)
-						: i18n.baseText('tradingModeToggle.mock' as BaseTextKey)
+					isWorkflowActive
+						? i18n.baseText('tradingModeToggle.disabled' as BaseTextKey)
+						: isPaperMode
+							? i18n.baseText('tradingModeToggle.paper' as BaseTextKey)
+							: i18n.baseText('tradingModeToggle.mock' as BaseTextKey)
 				}}
 			</N8nText>
 		</div>
@@ -81,7 +92,9 @@ async function tradingModeChanged(newMode: string | number | boolean) {
 					{{
 						isNewWorkflow
 							? i18n.baseText('tradingModeToggle.saveWorkflowFirst' as BaseTextKey)
-							: i18n.baseText('tradingModeToggle.noPermission' as BaseTextKey)
+							: isWorkflowActive
+								? i18n.baseText('tradingModeToggle.disabled' as BaseTextKey)
+								: i18n.baseText('tradingModeToggle.noPermission' as BaseTextKey)
 					}}
 				</div>
 			</template>

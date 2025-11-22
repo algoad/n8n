@@ -8,29 +8,29 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
-import { mockAlpacaPlaceOrderResponse } from '../../utils/mock-trade-response';
+import { mockKalshiPlaceOrderResponse } from '../../utils/mock-trade-response';
 import { OrderNodeExecutor } from '../../utils/order-node-executor';
 import type { NodeTypeWithMetadata } from '../../utils/order-node-shared-types';
 import { TradingEnvironment, OrderExecutionContext } from '../../utils/order-node-types';
 import { trackOrder } from '../../utils/trading-node-helper';
 
-export class AlpacaMarkets implements INodeType {
+export class Kalshi implements INodeType {
 	description: INodeTypeDescription & { metadata?: { tags: string[] } } = {
-		displayName: 'Alpaca Markets',
-		name: 'alpacaMarkets',
-		icon: 'file:alpaca.svg',
+		displayName: 'Kalshi',
+		name: 'kalshi',
+		icon: 'file:kalshi.svg',
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',
-		description: 'Execute trades and manage positions on Alpaca Markets',
+		description: 'Execute trades and manage positions on Kalshi prediction markets',
 		defaults: {
-			name: 'Alpaca Markets',
+			name: 'Kalshi',
 		},
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
-				name: 'alpacaMarketsApi',
+				name: 'kalshiApi',
 				required: true,
 			},
 		],
@@ -43,7 +43,7 @@ export class AlpacaMarkets implements INodeType {
 			resources: {
 				primaryDocumentation: [
 					{
-						url: 'https://alpaca.markets/docs/',
+						url: 'https://docs.kalshi.com/',
 					},
 				],
 			},
@@ -52,7 +52,7 @@ export class AlpacaMarkets implements INodeType {
 		// This identifies nodes that execute trades
 		// Accessible at runtime via:
 		// - this.nodeType.description.metadata (during node execution)
-		// - workflow.nodeTypes.getByNameAndVersion('alpacaMarkets', 1).description.metadata
+		// - workflow.nodeTypes.getByNameAndVersion('kalshi', 1).description.metadata
 		// - nodeType.description.metadata (when you have the node type instance)
 		metadata: {
 			tags: ['ORDER'],
@@ -68,7 +68,7 @@ export class AlpacaMarkets implements INodeType {
 					{
 						name: 'Place Order',
 						value: 'placeOrder',
-						description: 'Place a buy or sell order',
+						description: 'Place a yes or no prediction market order',
 						action: 'Place an order',
 					},
 					{
@@ -94,6 +94,19 @@ export class AlpacaMarkets implements INodeType {
 
 			// Place Order Fields
 			{
+				displayName: 'Market ID',
+				name: 'marketId',
+				type: 'string',
+				displayOptions: {
+					show: {
+						operation: ['placeOrder'],
+					},
+				},
+				default: '',
+				required: true,
+				description: 'The Kalshi market identifier (e.g., KALS-2024-ELECTION)',
+			},
+			{
 				displayName: 'Side',
 				name: 'side',
 				type: 'options',
@@ -104,94 +117,54 @@ export class AlpacaMarkets implements INodeType {
 				},
 				options: [
 					{
-						name: 'Buy',
-						value: 'buy',
+						name: 'Yes',
+						value: 'yes',
 					},
 					{
-						name: 'Sell',
-						value: 'sell',
+						name: 'No',
+						value: 'no',
 					},
 				],
-				default: 'buy',
+				default: 'yes',
 				required: true,
-				description: 'Whether to buy or sell',
-			},
-			{
-				displayName: 'Symbol',
-				name: 'symbol',
-				type: 'string',
-				displayOptions: {
-					show: {
-						operation: ['placeOrder'],
-					},
-				},
-				default: '',
-				placeholder: 'AAPL',
-				required: true,
-				description: 'The stock symbol to trade (e.g., AAPL, TSLA, GOOGL)',
-			},
-			{
-				displayName: 'Quantity Type',
-				name: 'quantityType',
-				type: 'options',
-				displayOptions: {
-					show: {
-						operation: ['placeOrder'],
-					},
-				},
-				options: [
-					{
-						name: 'Shares',
-						value: 'qty',
-						description: 'Specify number of shares',
-					},
-					{
-						name: 'Notional (Dollar Amount)',
-						value: 'notional',
-						description: 'Specify dollar amount to invest',
-					},
-				],
-				default: 'qty',
-				required: true,
-				description: 'Whether to specify quantity in shares or dollar amount',
+				description: 'Whether to buy yes or no',
 			},
 			{
 				displayName: 'Quantity',
-				name: 'qty',
+				name: 'quantity',
 				type: 'number',
 				displayOptions: {
 					show: {
 						operation: ['placeOrder'],
-						quantityType: ['qty'],
 					},
 				},
 				default: 1,
 				typeOptions: {
-					minValue: 0,
+					minValue: 1,
 				},
 				required: true,
-				description: 'Number of shares to buy or sell',
+				description: 'Number of shares to buy',
 			},
 			{
-				displayName: 'Notional Amount',
-				name: 'notional',
+				displayName: 'Price',
+				name: 'price',
 				type: 'number',
 				displayOptions: {
 					show: {
 						operation: ['placeOrder'],
-						quantityType: ['notional'],
 					},
 				},
-				default: 100,
+				default: 50,
 				typeOptions: {
 					minValue: 0,
+					maxValue: 100,
 				},
 				required: true,
-				description: 'Dollar amount to invest (minimum $1)',
+				description: 'Price per share (0-100 cents)',
 			},
 			{
 				displayName: 'Order Type',
-				name: 'type',
+				name: 'orderType',
 				type: 'options',
 				displayOptions: {
 					show: {
@@ -209,109 +182,10 @@ export class AlpacaMarkets implements INodeType {
 						value: 'limit',
 						description: 'Execute at specified price or better',
 					},
-					{
-						name: 'Stop',
-						value: 'stop',
-						description: 'Execute when price reaches stop price',
-					},
-					{
-						name: 'Stop Limit',
-						value: 'stop_limit',
-						description: 'Combination of stop and limit orders',
-					},
 				],
-				default: 'market',
+				default: 'limit',
 				required: true,
 				description: 'The type of order to place',
-			},
-			{
-				displayName: 'Time In Force',
-				name: 'time_in_force',
-				type: 'options',
-				displayOptions: {
-					show: {
-						operation: ['placeOrder'],
-					},
-				},
-				options: [
-					{
-						name: 'Day',
-						value: 'day',
-						description: 'Valid for the trading day',
-					},
-					{
-						name: 'Good Till Canceled',
-						value: 'gtc',
-						description: 'Valid until canceled',
-					},
-					{
-						name: 'Immediate or Cancel',
-						value: 'ioc',
-						description: 'Fill immediately or cancel',
-					},
-					{
-						name: 'Fill or Kill',
-						value: 'fok',
-						description: 'Fill entirely or cancel',
-					},
-				],
-				default: 'day',
-				required: true,
-				description: 'How long the order remains active',
-			},
-			{
-				displayName: 'Additional Options',
-				name: 'additionalOptions',
-				type: 'collection',
-				placeholder: 'Add Option',
-				displayOptions: {
-					show: {
-						operation: ['placeOrder'],
-					},
-				},
-				default: {},
-				options: [
-					{
-						displayName: 'Limit Price',
-						name: 'limit_price',
-						type: 'number',
-						displayOptions: {
-							show: {
-								// eslint-disable-next-line @typescript-eslint/naming-convention
-								'/type': ['limit', 'stop_limit'],
-							},
-						},
-						default: 0,
-						description: 'Limit price for limit orders',
-					},
-					{
-						displayName: 'Stop Price',
-						name: 'stop_price',
-						type: 'number',
-						displayOptions: {
-							show: {
-								// eslint-disable-next-line @typescript-eslint/naming-convention
-								'/type': ['stop', 'stop_limit'],
-							},
-						},
-						default: 0,
-						description: 'Stop price for stop orders',
-					},
-					{
-						displayName: 'Extended Hours',
-						name: 'extended_hours',
-						type: 'boolean',
-						default: false,
-						description: 'Whether to allow trading during extended hours',
-					},
-					{
-						displayName: 'Client Order ID',
-						name: 'client_order_id',
-						type: 'string',
-						default: '',
-						description: 'A unique identifier for the order',
-					},
-				],
 			},
 
 			// Cancel Order Fields
@@ -376,17 +250,14 @@ export class AlpacaMarkets implements INodeType {
 				const executionResult = OrderNodeExecutor.determineExecutionBehavior(this, config);
 
 				// Log execution context for debugging
-				console.log('[ORDER Node] Execution Info:', {
-					context: executionResult.context,
-					shouldMock: executionResult.shouldMock,
-					forcePaperTrading: executionResult.forcePaperTrading,
-					executeRealTrade: executionResult.executeRealTrade,
-					operation,
-					hasOrderMetadata,
-				});
+				if (hasOrderMetadata) {
+					this.logger?.warn(
+						`[ORDER Node] Context: ${executionResult.context}, Mock: ${executionResult.shouldMock}, Force Paper: ${executionResult.forcePaperTrading}, Operation: ${operation}`,
+					);
+				}
 
 				// Get credentials
-				let credentials = await this.getCredentials('alpacaMarketsApi', i);
+				let credentials = await this.getCredentials('kalshiApi', i);
 
 				// Force paper trading if needed
 				if (executionResult.forcePaperTrading && !OrderNodeExecutor.isPaperTrading(credentials)) {
@@ -397,54 +268,36 @@ export class AlpacaMarkets implements INodeType {
 				}
 
 				// Determine base URL based on environment
+				// Per Kalshi docs: demo uses .co, production uses .com
 				const environment =
 					(credentials.environment as TradingEnvironment) ?? TradingEnvironment.paper;
 				const baseUrl =
 					environment === TradingEnvironment.paper
-						? 'https://paper-api.alpaca.markets'
-						: 'https://api.alpaca.markets';
+						? 'https://demo-api.kalshi.co/trade-api/v2'
+						: 'https://api.kalshi.com/trade-api/v2';
 
 				let responseData: IDataObject = {};
 
 				if (operation === 'placeOrder') {
-					const side = getParameter<string>('side', 'buy');
-					const symbol = getParameter<string>('symbol', '');
-					const quantityType = getParameter<string>('quantityType', 'qty');
-					const type = getParameter<string>('type', 'market');
-					const timeInForce = getParameter<string>('time_in_force', 'day');
-					const additionalOptions = getParameter<IDataObject>('additionalOptions', {});
+					const marketId = getParameter<string>('marketId', '');
+					const side = getParameter<string>('side', 'yes');
+					const quantity = getParameter<number>('quantity', 1);
+					const price = getParameter<number>('price', 50);
+					const orderType = getParameter<string>('orderType', 'limit');
 
 					const body: IDataObject = {
-						symbol: symbol.trim().toUpperCase(),
+						market_id: marketId.trim(),
 						side,
-						type,
-						time_in_force: timeInForce,
+						count: quantity,
+						price,
 					};
 
-					// Add quantity or notional
-					if (quantityType === 'qty') {
-						body.qty = getParameter<number>('qty', 1);
+					// Add order type if it's a limit order
+					if (orderType === 'limit') {
+						body.type = 'limit';
 					} else {
-						body.notional = getParameter<number>('notional', 100);
+						body.type = 'market';
 					}
-
-					// Add additional options (merge input data additional options if present)
-					const inputAdditionalOptions: IDataObject = {};
-					if (items[i].json.limit_price !== undefined) {
-						inputAdditionalOptions.limit_price = items[i].json.limit_price;
-					}
-					if (items[i].json.stop_price !== undefined) {
-						inputAdditionalOptions.stop_price = items[i].json.stop_price;
-					}
-					if (items[i].json.extended_hours !== undefined) {
-						inputAdditionalOptions.extended_hours = items[i].json.extended_hours;
-					}
-					if (items[i].json.client_order_id !== undefined) {
-						inputAdditionalOptions.client_order_id = items[i].json.client_order_id;
-					}
-
-					// Merge: node additionalOptions first, then input data overrides
-					Object.assign(body, additionalOptions, inputAdditionalOptions);
 
 					// Check if we should mock the response
 					if (executionResult.shouldMock && isTradeOperation) {
@@ -452,12 +305,12 @@ export class AlpacaMarkets implements INodeType {
 						this.logger?.warn(
 							'ORDER node: Mocking trade execution response. NO REAL TRADE WILL BE EXECUTED.',
 						);
-						responseData = mockAlpacaPlaceOrderResponse(body);
+						responseData = mockKalshiPlaceOrderResponse(body);
 					} else if (executionResult.executeRealTrade) {
 						// Execute real trade
 						const options: IHttpRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/v2/orders`,
+							url: `${baseUrl}/portfolio/orders`,
 							headers: {
 								// eslint-disable-next-line @typescript-eslint/naming-convention
 								'Content-Type': 'application/json',
@@ -468,7 +321,7 @@ export class AlpacaMarkets implements INodeType {
 
 						responseData = (await this.helpers.httpRequestWithAuthentication.call(
 							this,
-							'alpacaMarketsApi',
+							'kalshiApi',
 							options,
 						)) as IDataObject;
 					} else {
@@ -476,30 +329,24 @@ export class AlpacaMarkets implements INodeType {
 						this.logger?.warn(
 							'ORDER node: Neither mocking nor executing trade. Using mock as fallback.',
 						);
-						responseData = mockAlpacaPlaceOrderResponse(body);
+						responseData = mockKalshiPlaceOrderResponse(body);
 					}
 
 					// Track the order in our database
 					try {
 						const orderTrackingData: IDataObject = {
-							brokerOrderId: responseData.id as string,
-							symbol: symbol.trim().toUpperCase(),
+							brokerOrderId: (responseData.order_id as string) || (responseData.id as string),
+							marketId: marketId.trim(),
 							side,
-							quantityType,
-							quantity: quantityType === 'qty' ? body.qty : undefined,
-							notional: quantityType === 'notional' ? body.notional : undefined,
-							orderType: type,
-							timeInForce,
-							limitPrice: body.limit_price as number | undefined,
-							stopPrice: body.stop_price as number | undefined,
+							quantity,
+							price,
 							status: (responseData.status as string) || 'pending',
 							filledAt: responseData.filled_at
 								? new Date(responseData.filled_at as string)
 								: undefined,
 							metadata: {
 								brokerResponse: responseData,
-								clientOrderId: body.client_order_id,
-								extendedHours: body.extended_hours,
+								orderType,
 							},
 						};
 
@@ -507,7 +354,7 @@ export class AlpacaMarkets implements INodeType {
 						await trackOrder(
 							this,
 							orderTrackingData,
-							'stock',
+							'predictionMarket',
 							credentials,
 							undefined,
 							executionResult.context,
@@ -523,25 +370,25 @@ export class AlpacaMarkets implements INodeType {
 				} else if (operation === 'getAccount') {
 					const options: IHttpRequestOptions = {
 						method: 'GET',
-						url: `${baseUrl}/v2/account`,
+						url: `${baseUrl}/portfolio/balance`,
 						json: true,
 					};
 
 					responseData = (await this.helpers.httpRequestWithAuthentication.call(
 						this,
-						'alpacaMarketsApi',
+						'kalshiApi',
 						options,
 					)) as IDataObject;
 				} else if (operation === 'getPositions') {
 					const options: IHttpRequestOptions = {
 						method: 'GET',
-						url: `${baseUrl}/v2/positions`,
+						url: `${baseUrl}/portfolio/positions`,
 						json: true,
 					};
 
 					responseData = (await this.helpers.httpRequestWithAuthentication.call(
 						this,
-						'alpacaMarketsApi',
+						'kalshiApi',
 						options,
 					)) as IDataObject;
 				} else if (operation === 'cancelOrder') {
@@ -549,13 +396,13 @@ export class AlpacaMarkets implements INodeType {
 
 					const options: IHttpRequestOptions = {
 						method: 'DELETE',
-						url: `${baseUrl}/v2/orders/${orderId}`,
+						url: `${baseUrl}/portfolio/orders/${orderId}`,
 						json: true,
 					};
 
 					responseData = (await this.helpers.httpRequestWithAuthentication.call(
 						this,
-						'alpacaMarketsApi',
+						'kalshiApi',
 						options,
 					)) as IDataObject;
 				}

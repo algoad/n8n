@@ -91,7 +91,7 @@ describe('trading-node-helper', () => {
 			it('should proceed with database write when shouldMock is false and not execute-step', async () => {
 				(tradingApiClientModule.sendOrderToAPI as jest.Mock).mockResolvedValue({ success: true });
 
-				const result = await trackOrder(
+				await trackOrder(
 					mockContext,
 					mockOrderData,
 					'stock',

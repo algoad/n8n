@@ -61,15 +61,9 @@ export async function trackOrder(
 	if (shouldMock === true) {
 		// Explicitly true - definitely mock mode
 		isMockMode = true;
-	} else if (shouldMock === false) {
-		// Explicitly false - but still check execution context as safety
-		const isExecuteStep = executionContext === OrderExecutionContext.executeStep;
-		if (isExecuteStep) {
-			// Execute step always mocks, even if shouldMock says false (safety override)
-			isMockMode = true;
-		} else {
-			isMockMode = false;
-		}
+		// Explicitly false - respect the decision from OrderNodeExecutor
+		// We trust the executor to have made the correct decision based on trading mode
+		isMockMode = false;
 	} else {
 		// shouldMock is undefined - use fallback detection
 		const isExecuteStep = executionContext === OrderExecutionContext.executeStep;

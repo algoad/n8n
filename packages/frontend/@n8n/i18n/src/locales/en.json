@@ -2919,6 +2919,7 @@
 	"workflowActivator.active": "Active",
 	"tradingModeToggle.mock": "Mock",
 	"tradingModeToggle.paper": "Paper",
+	"tradingModeToggle.disabled": "Disabled",
 	"tradingModeToggle.switchToMock": "Switch to mock mode (no real trades)",
 	"tradingModeToggle.switchToPaper": "Switch to paper mode (real paper trades)",
 	"tradingModeToggle.saveWorkflowFirst": "Save workflow first to enable trading mode",
