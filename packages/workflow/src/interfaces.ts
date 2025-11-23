@@ -2325,6 +2325,7 @@ export interface IWorkflowMetadata {
 	id?: string;
 	name?: string;
 	active: boolean;
+	settings?: IWorkflowSettings;
 }
 
 export interface IWebhookResponseData {

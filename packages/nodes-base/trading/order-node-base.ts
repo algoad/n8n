@@ -8,11 +8,7 @@ import type {
 
 import { OrderNodeExecutor } from './order-node-executor';
 import type { NodeTypeWithMetadata } from './order-node-shared-types';
-import {
-	OrderExecutionContext,
-	TradingEnvironment,
-	type OrderNodeConfig,
-} from './order-node-types';
+import { TradingEnvironment, type OrderNodeConfig } from './order-node-types';
 
 /**
  * Interface for ORDER node implementations
@@ -68,22 +64,9 @@ export abstract class OrderNodeBase implements IOrderNode {
 		const hasOrderMetadata = OrderNodeExecutor.hasOrderMetadata(nodeType);
 		const isTradeOperation = OrderNodeExecutor.isTradeOperation(operation);
 
-		// Get execution context if this is an ORDER node
-		let executionContext: OrderExecutionContext | null = null;
-		if (hasOrderMetadata) {
-			try {
-				const { getOrderExecutionContext } = await import('./execution-context');
-				executionContext = getOrderExecutionContext(this);
-			} catch (error) {
-				// Default to execute-step for safety if detection fails
-				executionContext = OrderExecutionContext.executeStep;
-			}
-		}
-
 		// Determine execution behavior
 		const config: OrderNodeConfig = {
 			hasOrderMetadata,
-			executionContext,
 			operation,
 			isTradeOperation,
 		};
@@ -93,7 +76,7 @@ export abstract class OrderNodeBase implements IOrderNode {
 		// Log execution context for debugging
 		if (hasOrderMetadata) {
 			this.logger?.warn(
-				`[ORDER Node] Context: ${executionResult.context}, Mock: ${executionResult.shouldMock}, Force Paper: ${executionResult.forcePaperTrading}, Operation: ${operation}`,
+				`[ORDER Node] Environment: ${executionResult.tradingEnvironment}, Operation: ${operation}`,
 			);
 		}
 
@@ -106,10 +89,13 @@ export abstract class OrderNodeBase implements IOrderNode {
 				let credentials = await this.getCredentials(credentialTypeName, i);
 
 				// Force paper trading if needed
-				if (executionResult.forcePaperTrading && !OrderNodeExecutor.isPaperTrading(credentials)) {
+				if (
+					executionResult.tradingEnvironment === TradingEnvironment.paper &&
+					!OrderNodeExecutor.isPaperTrading(credentials)
+				) {
 					credentials = OrderNodeExecutor.forcePaperTradingCredentials(credentials);
 					this.logger?.info(
-						`ORDER node: Forcing paper trading credentials (context: ${executionResult.context})`,
+						`ORDER node: Forcing paper trading credentials (environment: ${executionResult.tradingEnvironment})`,
 					);
 				}
 
@@ -121,14 +107,14 @@ export abstract class OrderNodeBase implements IOrderNode {
 				let responseData: IDataObject = {};
 
 				// Check if we should mock the response
-				if (executionResult.shouldMock && isTradeOperation) {
+				if (executionResult.tradingEnvironment === TradingEnvironment.mock && isTradeOperation) {
 					// Get order data from items
 					const orderData = items[i].json;
 					this.logger?.warn(
 						'ORDER node: Mocking trade execution response. NO REAL TRADE WILL BE EXECUTED.',
 					);
 					responseData = nodeInstance.getMockTradeResponse(orderData);
-				} else if (executionResult.executeRealTrade) {
+				} else if (executionResult.tradingEnvironment !== TradingEnvironment.mock) {
 					// Execute real trade
 					responseData = await executeTrade(credentials, baseUrl);
 				} else {

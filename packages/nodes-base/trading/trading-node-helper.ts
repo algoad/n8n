@@ -4,10 +4,10 @@ import {
 	getTradingExecutionContext,
 	determineTestModeWithCredentials,
 	type TradingExecutionContext,
-	getOrderExecutionContext,
 } from './execution-context';
-import { OrderExecutionContext } from './order-node-types';
 import { sendOrderToAPI } from './trading-api-client';
+
+import { TradingEnvironment } from './order-node-types';
 
 /**
  * Track an order after successful placement
@@ -16,8 +16,7 @@ import { sendOrderToAPI } from './trading-api-client';
  * @param orderType - The type of order
  * @param credentials - The credentials object (for environment check)
  * @param apiBaseUrl - Optional API base URL
- * @param orderExecutionContext - Optional execution context (if already determined)
- * @param shouldMock - Whether the trade was mocked (skip database write if true)
+ * @param tradingEnvironment - The trading environment used for execution
  * @returns Promise resolving to tracking result
  */
 export async function trackOrder(
@@ -26,8 +25,7 @@ export async function trackOrder(
 	orderType: 'stock' | 'crypto' | 'predictionMarket' | 'sportsBetting',
 	credentials?: IDataObject,
 	apiBaseUrl?: string,
-	orderExecutionContext?: OrderExecutionContext,
-	shouldMock?: boolean,
+	tradingEnvironment?: TradingEnvironment,
 ): Promise<IDataObject> {
 	// Get execution context
 	const execContext = getTradingExecutionContext(context);
@@ -43,40 +41,9 @@ export async function trackOrder(
 	// Determine environment from credentials
 	const environment = credentials?.environment === 'paper' ? 'paper' : 'live';
 
-	// Get OrderExecutionContext if not provided
-	let executionContext: OrderExecutionContext | undefined = orderExecutionContext;
-	if (!executionContext) {
-		try {
-			executionContext = getOrderExecutionContext(context);
-		} catch (error) {
-			// If we can't determine it, leave it undefined
-			context.logger?.warn('Could not determine OrderExecutionContext for tracking');
-		}
-	}
-
 	// Check if we're in mock mode - skip database write if so
-	// If shouldMock is explicitly passed, use that (most reliable)
-	// Otherwise, fall back to checking execution context and workflow settings
-	let isMockMode: boolean;
-	if (shouldMock === true) {
-		// Explicitly true - definitely mock mode
-		isMockMode = true;
-		// Explicitly false - respect the decision from OrderNodeExecutor
-		// We trust the executor to have made the correct decision based on trading mode
-		isMockMode = false;
-	} else {
-		// shouldMock is undefined - use fallback detection
-		const isExecuteStep = executionContext === OrderExecutionContext.executeStep;
-		// Type assertion: workflow object has settings at runtime even though IWorkflowMetadata doesn't include it
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-		const workflowSettings = (workflow as any).settings ?? {};
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-		const tradingMode = (workflowSettings.tradingMode as 'mock' | 'paper') ?? 'mock';
-		isMockMode = isExecuteStep || tradingMode === 'mock';
-	}
-
-	if (isMockMode) {
-		// Don't write to database in mock mode
+	if (tradingEnvironment === TradingEnvironment.mock) {
+		// Explicitly mock mode
 		context.logger?.info('Skipping database write for mock mode trade');
 		return {};
 	}
@@ -86,8 +53,6 @@ export async function trackOrder(
 		...orderData,
 		environment,
 		executionMode: isTestMode ? 'test' : 'production',
-		// Convert enum to string for API serialization
-		executionContext: executionContext ? String(executionContext) : undefined,
 	};
 
 	// Send to API

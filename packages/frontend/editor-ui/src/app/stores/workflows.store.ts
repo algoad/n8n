@@ -1693,6 +1693,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		}
 
 		try {
+			console.debug('startRunData.workflowData', startRunData.workflowData);
 			return await makeRestApiRequest(
 				rootStore.restApiContext,
 				'POST',

@@ -11,7 +11,8 @@
 		"nodes/**/*.ts",
 		"nodes/**/*.json",
 		"types/**/*.ts",
-		"utils/**/*.ts"
+		"utils/**/*.ts",
+		"trading/**/*.ts"
 	],
 	"exclude": [
 		"node_modules",

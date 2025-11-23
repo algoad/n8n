@@ -1,7 +1,7 @@
 import type { IExecuteFunctions, IDataObject } from 'n8n-workflow';
 
 import * as executionContextModule from './execution-context';
-import { OrderExecutionContext } from './order-node-types';
+import { TradingEnvironment } from './order-node-types';
 import * as tradingApiClientModule from './trading-api-client';
 import { trackOrder } from './trading-node-helper';
 
@@ -40,9 +40,7 @@ describe('trading-node-helper', () => {
 
 			(executionContextModule.determineTestModeWithCredentials as jest.Mock).mockReturnValue(false);
 
-			(executionContextModule.getOrderExecutionContext as jest.Mock).mockReturnValue(
-				OrderExecutionContext.manualInactive,
-			);
+			(executionContextModule.determineTestModeWithCredentials as jest.Mock).mockReturnValue(false);
 
 			mockContext.getWorkflow = jest.fn(() => ({
 				id: 'workflow-123',
@@ -59,8 +57,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.manualInactive,
-					true, // shouldMock = true
+					undefined,
+					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
 
 				expect(result).toEqual({});
@@ -77,8 +75,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.executeStep,
-					false, // shouldMock = false, but execute-step should override
+					undefined,
+					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
 
 				expect(result).toEqual({});
@@ -97,8 +95,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.manualInactive,
-					false, // shouldMock = false, not execute-step
+					undefined,
+					TradingEnvironment.paper, // tradingEnvironment = paper
 				);
 
 				expect(tradingApiClientModule.sendOrderToAPI).toHaveBeenCalled();
@@ -122,8 +120,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.manualInactive,
-					undefined, // shouldMock = undefined
+					undefined,
+					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
 
 				expect(result).toEqual({});
@@ -140,8 +138,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.executeStep,
-					undefined, // shouldMock = undefined
+					undefined,
+					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
 
 				expect(result).toEqual({});
@@ -168,8 +166,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.manualInactive,
-					undefined, // shouldMock = undefined
+					undefined,
+					TradingEnvironment.paper, // tradingEnvironment = paper
 				);
 
 				expect(tradingApiClientModule.sendOrderToAPI).toHaveBeenCalled();
@@ -193,8 +191,8 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					OrderExecutionContext.manualInactive,
-					false,
+					undefined,
+					TradingEnvironment.paper,
 				);
 
 				expect(tradingApiClientModule.sendOrderToAPI).toHaveBeenCalledWith(
@@ -203,14 +201,13 @@ describe('trading-node-helper', () => {
 						...mockOrderData,
 						environment: 'paper',
 						executionMode: 'test',
-						executionContext: 'manual-inactive',
 					}),
 					'stock',
 					undefined,
 				);
 			});
 
-			it('should convert execution context enum to string', async () => {
+			it('should pass correct environment to API', async () => {
 				(tradingApiClientModule.sendOrderToAPI as jest.Mock).mockResolvedValue({ success: true });
 
 				await trackOrder(
@@ -219,44 +216,17 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'live' },
 					undefined,
-					OrderExecutionContext.active,
-					false,
+					TradingEnvironment.live,
 				);
 
 				expect(tradingApiClientModule.sendOrderToAPI).toHaveBeenCalledWith(
 					mockContext,
 					expect.objectContaining({
-						executionContext: 'active',
+						environment: 'live',
 					}),
 					'stock',
 					undefined,
 				);
-			});
-		});
-
-		describe('Error handling', () => {
-			it('should handle errors when OrderExecutionContext cannot be determined', async () => {
-				(executionContextModule.getOrderExecutionContext as jest.Mock).mockImplementation(() => {
-					throw new Error('Cannot determine context');
-				});
-
-				(tradingApiClientModule.sendOrderToAPI as jest.Mock).mockResolvedValue({ success: true });
-
-				await trackOrder(
-					mockContext,
-					mockOrderData,
-					'stock',
-					{ environment: 'paper' },
-					undefined,
-					undefined, // Not provided, will try to detect
-					false,
-				);
-
-				expect(mockContext.logger?.warn).toHaveBeenCalledWith(
-					'Could not determine OrderExecutionContext for tracking',
-				);
-				// Should still proceed with database write if not in mock mode
-				expect(tradingApiClientModule.sendOrderToAPI).toHaveBeenCalled();
 			});
 		});
 	});

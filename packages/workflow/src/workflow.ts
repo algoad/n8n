@@ -89,6 +89,14 @@ export class Workflow {
 	pinData?: IPinData;
 
 	constructor(parameters: WorkflowParameters) {
+		// Debug: Log what settings are passed to the constructor
+		console.log('[Workflow] constructor - parameters.settings:', {
+			hasSettings: 'settings' in parameters,
+			settings: parameters.settings,
+			settingsType: typeof parameters.settings,
+			settingsKeys: parameters.settings ? Object.keys(parameters.settings) : [],
+		});
+
 		this.id = parameters.id as string; // @tech_debt Ensure this is not optional
 		this.name = parameters.name;
 		this.nodeTypes = parameters.nodeTypes;

@@ -8,11 +8,11 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
-import { mockAlpacaPlaceOrderResponse } from '../../utils/mock-trade-response';
-import { OrderNodeExecutor } from '../../utils/order-node-executor';
-import type { NodeTypeWithMetadata } from '../../utils/order-node-shared-types';
-import { TradingEnvironment, OrderExecutionContext } from '../../utils/order-node-types';
-import { trackOrder } from '../../utils/trading-node-helper';
+import { mockAlpacaPlaceOrderResponse } from '../../trading/mock-trade-response';
+import { OrderNodeExecutor } from '../../trading/order-node-executor';
+import type { NodeTypeWithMetadata } from '../../trading/order-node-shared-types';
+import { TradingEnvironment } from '../../trading/order-node-types';
+import { trackOrder } from '../../trading/trading-node-helper';
 
 export class AlpacaMarkets implements INodeType {
 	description: INodeTypeDescription & { metadata?: { tags: string[] } } = {
@@ -357,42 +357,23 @@ export class AlpacaMarkets implements INodeType {
 				// Determine execution behavior using ORDER node utilities
 				const config = {
 					hasOrderMetadata,
-					executionContext: null as OrderExecutionContext | null,
 					operation,
 					isTradeOperation,
 				};
 
-				// Get execution context if this is an ORDER node
-				if (hasOrderMetadata) {
-					try {
-						const { getOrderExecutionContext } = await import('../../utils/execution-context');
-						config.executionContext = getOrderExecutionContext(this);
-					} catch (error) {
-						// Default to execute-step for safety if detection fails
-						config.executionContext = OrderExecutionContext.executeStep;
-					}
-				}
-
 				const executionResult = OrderNodeExecutor.determineExecutionBehavior(this, config);
-
-				// Log execution context for debugging
-				console.log('[ORDER Node] Execution Info:', {
-					context: executionResult.context,
-					shouldMock: executionResult.shouldMock,
-					forcePaperTrading: executionResult.forcePaperTrading,
-					executeRealTrade: executionResult.executeRealTrade,
-					operation,
-					hasOrderMetadata,
-				});
 
 				// Get credentials
 				let credentials = await this.getCredentials('alpacaMarketsApi', i);
 
 				// Force paper trading if needed
-				if (executionResult.forcePaperTrading && !OrderNodeExecutor.isPaperTrading(credentials)) {
+				if (
+					executionResult.tradingEnvironment === TradingEnvironment.paper &&
+					!OrderNodeExecutor.isPaperTrading(credentials)
+				) {
 					credentials = OrderNodeExecutor.forcePaperTradingCredentials(credentials);
 					this.logger?.info(
-						`ORDER node: Forcing paper trading credentials (context: ${executionResult.context})`,
+						`ORDER node: Forcing paper trading credentials (environment: ${executionResult.tradingEnvironment})`,
 					);
 				}
 
@@ -446,14 +427,19 @@ export class AlpacaMarkets implements INodeType {
 					// Merge: node additionalOptions first, then input data overrides
 					Object.assign(body, additionalOptions, inputAdditionalOptions);
 
+					// Log execution details
+					this.logger?.warn(
+						`[AlpacaMarkets] Environment: ${executionResult.tradingEnvironment}, IsTradeOperation: ${isTradeOperation}, Operation: ${operation}`,
+					);
+
 					// Check if we should mock the response
-					if (executionResult.shouldMock && isTradeOperation) {
+					if (executionResult.tradingEnvironment === TradingEnvironment.mock && isTradeOperation) {
 						// Mock the response instead of making a real API call
 						this.logger?.warn(
 							'ORDER node: Mocking trade execution response. NO REAL TRADE WILL BE EXECUTED.',
 						);
 						responseData = mockAlpacaPlaceOrderResponse(body);
-					} else if (executionResult.executeRealTrade) {
+					} else if (executionResult.tradingEnvironment !== TradingEnvironment.mock) {
 						// Execute real trade
 						const options: IHttpRequestOptions = {
 							method: 'POST',
@@ -503,15 +489,14 @@ export class AlpacaMarkets implements INodeType {
 							},
 						};
 
-						// Pass the execution context and shouldMock flag that was already determined
+						// Pass the tradingEnvironment that was already determined
 						await trackOrder(
 							this,
 							orderTrackingData,
 							'stock',
 							credentials,
 							undefined,
-							executionResult.context,
-							executionResult.shouldMock,
+							executionResult.tradingEnvironment,
 						);
 					} catch (trackingError) {
 						// Log tracking error but don't fail the node execution

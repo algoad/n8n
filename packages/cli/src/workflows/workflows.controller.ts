@@ -522,6 +522,33 @@ export class WorkflowsController {
 	@Post('/:workflowId/run')
 	@ProjectScope('workflow:execute')
 	async runManually(req: WorkflowRequest.ManualRun, _res: unknown) {
+		// Debug: Log workflow settings received from frontend
+		console.log(
+			'[WorkflowsController] req.body.workflowData:',
+			JSON.stringify(
+				{
+					id: req.body.workflowData.id,
+					name: req.body.workflowData.name,
+					hasSettings: 'settings' in req.body.workflowData,
+					settings: req.body.workflowData.settings,
+					keys: Object.keys(req.body.workflowData),
+				},
+				null,
+				2,
+			),
+		);
+
+		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
+			this.logger.debug('[WorkflowsController] runManually - received workflowData:', {
+				workflowId: req.body.workflowData.id,
+				hasSettings: 'settings' in req.body.workflowData,
+				settings: req.body.workflowData.settings,
+				settingsKeys: req.body.workflowData.settings
+					? Object.keys(req.body.workflowData.settings)
+					: [],
+			});
+		}
+
 		if (!req.body.workflowData.id) {
 			throw new UnexpectedError('You cannot execute a workflow without an ID');
 		}

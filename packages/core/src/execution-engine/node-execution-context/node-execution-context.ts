@@ -16,6 +16,7 @@ import type {
 	INodeOutputConfiguration,
 	IRunExecutionData,
 	IWorkflowExecuteAdditionalData,
+	IWorkflowMetadata,
 	NodeConnectionType,
 	NodeInputConnections,
 	NodeParameterValueType,
@@ -79,9 +80,23 @@ export abstract class NodeExecutionContext implements Omit<FunctionsBase, 'getCr
 		return deepCopy(this.node);
 	}
 
-	getWorkflow() {
-		const { id, name, active } = this.workflow;
-		return { id, name, active };
+	getWorkflow(): IWorkflowMetadata {
+		// Debug: Log the workflow object before destructuring
+		if (process.env.N8N_DEBUG_ORDER_CONTEXT === 'true' || process.env.NODE_ENV === 'development') {
+			console.log('[NodeExecutionContext] getWorkflow - this.workflow:', {
+				workflowId: this.workflow.id,
+				workflowName: this.workflow.name,
+				workflowActive: this.workflow.active,
+				hasSettings: 'settings' in this.workflow,
+				settings: this.workflow.settings,
+				settingsType: typeof this.workflow.settings,
+				settingsKeys: this.workflow.settings ? Object.keys(this.workflow.settings) : [],
+				workflowKeys: Object.keys(this.workflow),
+			});
+		}
+
+		const { id, name, active, settings } = this.workflow;
+		return { id, name, active, settings };
 	}
 
 	getMode() {

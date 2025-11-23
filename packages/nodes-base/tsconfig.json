@@ -38,6 +38,7 @@
 		"test/**/*.ts",
 		"types/**/*.ts",
 		"utils/**/*.ts",
+		"trading/**/*.ts",
 		"types/**/*.ts",
 		"../core/nodes-testing/**/*.ts",
 		"../../node_modules/jest-expect-message/types/index.d.ts"
