@@ -57,7 +57,6 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					undefined,
 					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
 
@@ -74,7 +73,6 @@ describe('trading-node-helper', () => {
 					mockOrderData,
 					'stock',
 					{ environment: 'paper' },
-					undefined,
 					undefined,
 					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
@@ -94,7 +92,6 @@ describe('trading-node-helper', () => {
 					mockOrderData,
 					'stock',
 					{ environment: 'paper' },
-					undefined,
 					undefined,
 					TradingEnvironment.paper, // tradingEnvironment = paper
 				);
@@ -120,7 +117,6 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					undefined,
 					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
 
@@ -137,7 +133,6 @@ describe('trading-node-helper', () => {
 					mockOrderData,
 					'stock',
 					{ environment: 'paper' },
-					undefined,
 					undefined,
 					TradingEnvironment.mock, // tradingEnvironment = mock
 				);
@@ -166,7 +161,6 @@ describe('trading-node-helper', () => {
 					'stock',
 					{ environment: 'paper' },
 					undefined,
-					undefined,
 					TradingEnvironment.paper, // tradingEnvironment = paper
 				);
 
@@ -190,7 +184,6 @@ describe('trading-node-helper', () => {
 					mockOrderData,
 					'stock',
 					{ environment: 'paper' },
-					undefined,
 					undefined,
 					TradingEnvironment.paper,
 				);
