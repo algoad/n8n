@@ -50,7 +50,7 @@ export default mergeConfig(
 			rollupOptions: {
 				// make sure to externalize deps that shouldn't be bundled
 				// into your library
-				external: ['vue'],
+				external: ['vue', /^@n8n\/utils/, /^@n8n\/composables/],
 				output: {
 					exports: 'named',
 					// Provide global variables to use in the UMD build
