@@ -3,7 +3,13 @@
 	"compilerOptions": {
 		"outDir": "dist",
 		"module": "commonjs",
-		"tsBuildInfoFile": "dist/typecheck.tsbuildinfo"
+		"tsBuildInfoFile": "dist/typecheck.tsbuildinfo",
+		"paths": {
+			"@credentials/*": ["./credentials/*"],
+			"@test/*": ["./test/*"],
+			"@utils/*": ["./utils/*"],
+			"@nodes-testing/*": ["../core/nodes-testing/*"]
+		}
 	},
 	"include": [
 		"credentials/**/*.ts",

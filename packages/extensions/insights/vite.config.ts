@@ -2,7 +2,6 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import dts from 'vite-plugin-dts';
-import { configDefaults as vitestConfig } from 'vitest/config';
 
 const cwd = process.cwd();
 
@@ -23,7 +22,7 @@ export default defineConfig({
 			fileName: 'index',
 		},
 		rollupOptions: {
-			external: ['vue'],
+			external: ['vue', '@n8n/extension-sdk/frontend'],
 			output: {
 				preserveModules: false,
 				globals: {
@@ -31,12 +30,5 @@ export default defineConfig({
 				},
 			},
 		},
-	},
-	test: {
-		globals: true,
-		environment: 'jsdom',
-		setupFiles: ['src/__tests__/setup.ts'],
-		include: ['src/**/*.spec.ts'],
-		exclude: vitestConfig.exclude,
 	},
 });
